@@ -1,12 +1,12 @@
-import { toolDefinition } from '@tanstack/ai'
-import { z } from 'zod'
+import { toolDefinition } from "@tanstack/ai";
+import { z } from "zod";
 
-const zoneSchema = z.enum(['commander', 'main', 'maybeboard'])
+const zoneSchema = z.enum(["commander", "main", "maybeboard"]);
 
 export const getActiveDeckDefinition = toolDefinition({
-  name: 'get_active_deck',
+  name: "get_active_deck",
   description:
-    'Read the active deck and its current card list before assessing the deck, its ratios, or proposed changes. This returns the live list edited by both the user and assistant.',
+    "Read the active deck and its current card list before assessing the deck, its ratios, or proposed changes. This returns the live list edited by both the user and assistant.",
   inputSchema: z.object({}),
   outputSchema: z.object({
     deck: z.object({
@@ -16,52 +16,65 @@ export const getActiveDeckDefinition = toolDefinition({
     }),
     cards: z.array(
       z.object({
-        name: z.string(), quantity: z.number(), zone: zoneSchema,
-        typeLine: z.string(), oracleText: z.string().optional(),
-        manaValue: z.number(), tags: z.array(z.string()),
+        name: z.string(),
+        quantity: z.number(),
+        zone: zoneSchema,
+        typeLine: z.string(),
+        oracleText: z.string().optional(),
+        manaValue: z.number(),
+        tags: z.array(z.string()),
       }),
     ),
   }),
-})
+});
 
 export const editActiveDeckDefinition = toolDefinition({
-  name: 'edit_active_deck',
+  name: "edit_active_deck",
   description:
-    'Edit the active deck after verifying card text. Use upsert to add or change a card and remove to cut it. State the reason in chat after the tool succeeds.',
+    "Edit the active deck after verifying card text. Use upsert to add or change a card and remove to cut it. State the reason in chat after the tool succeeds.",
   inputSchema: z.object({
-    action: z.enum(['upsert', 'remove']),
+    action: z.enum(["upsert", "remove"]),
     cardName: z.string().min(1),
     quantity: z.number().int().min(1).max(99).default(1),
-    zone: zoneSchema.default('main'),
+    zone: zoneSchema.default("main"),
     tags: z.array(z.string()).default([]),
   }),
   outputSchema: z.object({ success: z.boolean(), message: z.string() }),
-})
+});
 
 export type DeckToolContext = {
   readDeck: () => {
-    deck: { name: string; commanderName?: string; colorIdentity: string[] }
+    deck: { name: string; commanderName?: string; colorIdentity: string[] };
     cards: Array<{
-      name: string; quantity: number; zone: 'commander' | 'main' | 'maybeboard'
-      typeLine: string; oracleText?: string; manaValue: number; tags: string[]
-    }>
-  }
+      name: string;
+      quantity: number;
+      zone: "commander" | "main" | "maybeboard";
+      typeLine: string;
+      oracleText?: string;
+      manaValue: number;
+      tags: string[];
+    }>;
+  };
   editDeck: (input: {
-    action: 'upsert' | 'remove'; cardName: string; quantity: number
-    zone: 'commander' | 'main' | 'maybeboard'; tags: string[]
-  }) => Promise<{ success: boolean; message: string }>
-}
+    action: "upsert" | "remove";
+    cardName: string;
+    quantity: number;
+    zone: "commander" | "main" | "maybeboard";
+    tags: string[];
+  }) => Promise<{ success: boolean; message: string }>;
+};
 
 export const getActiveDeckClientTool = getActiveDeckDefinition.client<DeckToolContext>(
   (_input, ctx) => ctx.context.readDeck(),
-)
+);
 
 export const editActiveDeckClientTool = editActiveDeckDefinition.client<DeckToolContext>(
-  (input, ctx) => ctx.context.editDeck({
-    action: input.action,
-    cardName: input.cardName,
-    quantity: input.quantity ?? 1,
-    zone: input.zone ?? 'main',
-    tags: input.tags ?? [],
-  }),
-)
+  (input, ctx) =>
+    ctx.context.editDeck({
+      action: input.action,
+      cardName: input.cardName,
+      quantity: input.quantity ?? 1,
+      zone: input.zone ?? "main",
+      tags: input.tags ?? [],
+    }),
+);

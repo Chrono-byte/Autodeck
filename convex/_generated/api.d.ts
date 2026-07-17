@@ -13,6 +13,7 @@ import type * as deckCards from "../deckCards.js";
 import type * as deckEvents from "../deckEvents.js";
 import type * as decks from "../decks.js";
 import type * as http from "../http.js";
+import type * as openaiCodex from "../openaiCodex.js";
 import type * as threads from "../threads.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   deckEvents: typeof deckEvents;
   decks: typeof decks;
   http: typeof http;
+  openaiCodex: typeof openaiCodex;
   threads: typeof threads;
 }>;
 

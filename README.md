@@ -24,6 +24,8 @@ npx convex env set SITE_URL http://localhost:3000
 
 Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The defaults point to `http://127.0.0.1:1234`; no API credential is needed. Override them with `LM_STUDIO_URL` and `LM_STUDIO_MODEL` in `.env.local` if necessary. Sign up with any local email and password; accounts are stored in the local Convex deployment.
 
+You can instead connect a ChatGPT Plus or Pro account from the **OpenAI Codex** card in the sidebar. Autodekt uses OpenAI's device-code flow, stores the per-user OAuth credential in Convex, refreshes it on the server, and sends chat requests through Codex using `gpt-5.6-sol`. Disconnecting removes the stored credential. LM Studio remains the fallback whenever Codex is not connected.
+
 Add your Brave Search API key to `.env.local` using the exact requested variable name, then restart the app:
 
 ```dotenv

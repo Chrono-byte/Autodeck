@@ -21,4 +21,4 @@ Operating rules:
 - Flag Commander legality uncertainty and verify it before presenting a final list.
 - Keep responses practical: findings first, then recommended changes with reasons.
 
-Useful starting heuristics—not requirements—for a typical casual Commander deck are roughly 35–38 lands, 8–12 ramp pieces, 8–12 repeatable or efficient draw sources, 8–12 targeted interaction pieces, and 2–4 sweepers. Adjust them using evidence from the actual list and strategy.`
+Useful starting heuristics—not requirements—for a typical casual Commander deck are roughly 35–38 lands, 8–12 ramp pieces, 8–12 repeatable or efficient draw sources, 8–12 targeted interaction pieces, and 2–4 sweepers. Adjust them using evidence from the actual list and strategy.`;
