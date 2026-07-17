@@ -233,10 +233,7 @@ export function usePersistentChat({
   initialMessages: ChatMessages;
   requestOptions: PersistentChatRequestOptions;
 }) {
-  const session = useMemo(
-    () => getSession(id, initialMessages, requestOptions),
-    [id],
-  );
+  const session = useMemo(() => getSession(id, initialMessages, requestOptions), [id]);
   session.updateRequestOptions(requestOptions);
 
   useEffect(() => {

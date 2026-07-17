@@ -38,7 +38,9 @@ function SettingsPage() {
   return (
     <main className="settings-page">
       <header className="settings-header">
-        <Link to="/" className="settings-back">← Back to workspace</Link>
+        <Link to="/" className="settings-back">
+          ← Back to workspace
+        </Link>
         <div className="settings-brand">
           <div className="brand-mark">A</div>
           <strong>Autodekt</strong>
@@ -47,7 +49,9 @@ function SettingsPage() {
       <div className="settings-shell">
         <aside className="settings-nav">
           <p className="eyebrow">SETTINGS</p>
-          <a href="#account" className="active">Account</a>
+          <a href="#account" className="active">
+            Account
+          </a>
           <a href="#connections">Connections</a>
         </aside>
         <section className="settings-content">
@@ -63,9 +67,7 @@ function SettingsPage() {
               <p>Your identity in this workspace.</p>
             </div>
             <div className="settings-card profile-settings-card">
-              <div className="settings-avatar">
-                {user?.name?.slice(0, 1).toUpperCase() ?? "U"}
-              </div>
+              <div className="settings-avatar">{user?.name?.slice(0, 1).toUpperCase() ?? "U"}</div>
               <div>
                 <strong>{user?.name ?? "Brewer"}</strong>
                 <span>{user?.email}</span>
@@ -139,7 +141,9 @@ function CodexConnection() {
 
   return (
     <div className={`settings-card connection-settings-card ${connected ? "connected" : ""}`}>
-      <div className="connection-provider-mark" aria-hidden="true">AI</div>
+      <div className="connection-provider-mark" aria-hidden="true">
+        AI
+      </div>
       <div className="connection-copy">
         <div className="connection-title-row">
           <strong>OpenAI Codex</strong>
@@ -155,18 +159,33 @@ function CodexConnection() {
             <span>Enter this code at OpenAI</span>
             <strong>{deviceCode}</strong>
             {verificationUri && (
-              <a href={verificationUri} target="_blank" rel="noreferrer">Open OpenAI ↗</a>
+              <a href={verificationUri} target="_blank" rel="noreferrer">
+                Open OpenAI ↗
+              </a>
             )}
           </div>
         )}
-        {error && <p className="settings-connection-error" role="alert">{error}</p>}
+        {error && (
+          <p className="settings-connection-error" role="alert">
+            {error}
+          </p>
+        )}
       </div>
       {connected ? (
-        <button type="button" className="secondary-settings-button" onClick={() => void disconnect()}>
+        <button
+          type="button"
+          className="secondary-settings-button"
+          onClick={() => void disconnect()}
+        >
           Disconnect
         </button>
       ) : (
-        <button type="button" className="primary-settings-button" disabled={busy} onClick={() => void connect()}>
+        <button
+          type="button"
+          className="primary-settings-button"
+          disabled={busy}
+          onClick={() => void connect()}
+        >
           {busy ? "Waiting for OpenAI…" : "Connect"}
         </button>
       )}

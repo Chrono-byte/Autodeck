@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import {
-  AuthLoading,
-  Authenticated,
-  Unauthenticated,
-  useMutation,
-  useQuery,
-} from "convex/react";
+import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -162,9 +156,7 @@ function AuthenticatedWorkspace() {
     const maximumChat = Math.min(75, 100 - (420 / usableWidth) * 100);
     const rawSplit = ((clientX - bounds.left) / usableWidth) * 100;
     const nextSplit =
-      minimumChat <= maximumChat
-        ? Math.min(maximumChat, Math.max(minimumChat, rawSplit))
-        : 50;
+      minimumChat <= maximumChat ? Math.min(maximumChat, Math.max(minimumChat, rawSplit)) : 50;
     setChatSplit(Math.round(nextSplit * 10) / 10);
   };
 
@@ -183,7 +175,7 @@ function AuthenticatedWorkspace() {
         </header>
         <button
           className="new-deck-button"
-          onClick={() => deckId ? void startThread(deckId) : setCreatingDeck(true)}
+          onClick={() => (deckId ? void startThread(deckId) : setCreatingDeck(true))}
         >
           <PlusIcon /> {deckId ? "New thread" : "New deck"}
         </button>
@@ -204,7 +196,12 @@ function AuthenticatedWorkspace() {
         <nav className="deck-nav">
           <div className="sidebar-section-heading">
             <p className="nav-label">DECKS</p>
-            <button type="button" onClick={() => setCreatingDeck(true)} title="New deck" aria-label="New deck">
+            <button
+              type="button"
+              onClick={() => setCreatingDeck(true)}
+              title="New deck"
+              aria-label="New deck"
+            >
               <PlusIcon />
             </button>
           </div>
@@ -258,10 +255,12 @@ function AuthenticatedWorkspace() {
                             className={threadItem.pinned ? "active" : ""}
                             title={threadItem.pinned ? "Unpin thread" : "Pin thread"}
                             aria-label={threadItem.pinned ? "Unpin thread" : "Pin thread"}
-                            onClick={() => void setThreadPinned({
-                              threadId: threadItem._id,
-                              pinned: !threadItem.pinned,
-                            })}
+                            onClick={() =>
+                              void setThreadPinned({
+                                threadId: threadItem._id,
+                                pinned: !threadItem.pinned,
+                              })
+                            }
                           >
                             <PinIcon filled={threadItem.pinned === true} />
                           </button>
@@ -279,10 +278,7 @@ function AuthenticatedWorkspace() {
                         </div>
                       </div>
                     ))}
-                  <button
-                    className="add-thread"
-                    onClick={() => void startThread(item._id)}
-                  >
+                  <button className="add-thread" onClick={() => void startThread(item._id)}>
                     <PlusIcon /> New thread
                   </button>
                 </div>
@@ -345,7 +341,10 @@ function AuthenticatedWorkspace() {
               event.preventDefault();
               const amount = event.shiftKey ? 5 : 2;
               setChatSplit((current) =>
-                Math.min(75, Math.max(25, current + (event.key === "ArrowRight" ? amount : -amount))),
+                Math.min(
+                  75,
+                  Math.max(25, current + (event.key === "ArrowRight" ? amount : -amount)),
+                ),
               );
             }}
           >

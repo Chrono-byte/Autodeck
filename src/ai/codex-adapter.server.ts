@@ -40,7 +40,9 @@ function mergeStreamedOutputItems(
   streamedOutput: ReadonlyArray<ResponseItem>,
 ): ResponseOutput {
   const merged = [...completedOutput];
-  const completedKeys = new Set(merged.map(outputItemKey).filter((key): key is string => Boolean(key)));
+  const completedKeys = new Set(
+    merged.map(outputItemKey).filter((key): key is string => Boolean(key)),
+  );
 
   for (const item of streamedOutput) {
     const key = outputItemKey(item);
@@ -96,18 +98,12 @@ export class CodexReasoningSummaryNormalizer {
       return [chunk];
     }
 
-    if (
-      event.type === "response.reasoning_summary_text.delta" &&
-      typeof event.delta === "string"
-    ) {
+    if (event.type === "response.reasoning_summary_text.delta" && typeof event.delta === "string") {
       return [this.appendDelta(event, event.delta)];
     }
 
     let completedText: string | undefined;
-    if (
-      event.type === "response.reasoning_summary_text.done" &&
-      typeof event.text === "string"
-    ) {
+    if (event.type === "response.reasoning_summary_text.done" && typeof event.text === "string") {
       completedText = event.text;
     } else if (
       event.type === "response.reasoning_summary_part.done" &&
@@ -242,31 +238,38 @@ export function normalizeCodexToolEvent(
   return chunk;
 }
 
-class CodexResponsesAdapter<TModel extends string> extends OpenAICompatibleResponsesAdapter<TModel> {
+class CodexResponsesAdapter<
+  TModel extends string,
+> extends OpenAICompatibleResponsesAdapter<TModel> {
   private initialInput: ResponseInput | undefined;
   private readonly responseBatches: ResponseOutput[] = [];
   private readonly itemIdToCallId = new Map<string, string>();
 
   constructor(model: TModel, base: OpenAICompatibleResponsesAdapter<TModel>) {
-    const client = (base as unknown as { client: ConstructorParameters<typeof OpenAICompatibleResponsesAdapter>[0] })
-      .client;
+    const client = (
+      base as unknown as {
+        client: ConstructorParameters<typeof OpenAICompatibleResponsesAdapter>[0];
+      }
+    ).client;
     super(client, model, "openai-codex");
   }
 
-  protected override mapOptionsToRequest(
-    options: TextOptions<Record<string, unknown>>,
-  ) {
+  protected override mapOptionsToRequest(options: TextOptions<Record<string, unknown>>) {
     const request = super.mapOptionsToRequest(options);
-    const currentInput = (Array.isArray(request.input) ? request.input : []) as unknown as ResponseInput;
+    const currentInput = (Array.isArray(request.input)
+      ? request.input
+      : []) as unknown as ResponseInput;
     this.initialInput ??= stripHistoricalToolProtocol(currentInput);
 
     return {
       ...request,
-      input: (
-        this.responseBatches.length === 0
-          ? this.initialInput
-          : buildCodexReplayInput(this.initialInput, this.responseBatches, currentInput)
-      ) as unknown as typeof request.input,
+      input: (this.responseBatches.length === 0
+        ? this.initialInput
+        : buildCodexReplayInput(
+            this.initialInput,
+            this.responseBatches,
+            currentInput,
+          )) as unknown as typeof request.input,
       ...(options.threadId ? { prompt_cache_key: options.threadId } : {}),
     };
   }
@@ -298,11 +301,13 @@ class CodexResponsesAdapter<TModel extends string> extends OpenAICompatibleRespo
     for await (const chunk of stream) {
       const event = chunk as unknown as Record<string, unknown>;
       if (
-        (event.type === "response.output_item.added" || event.type === "response.output_item.done") &&
+        (event.type === "response.output_item.added" ||
+          event.type === "response.output_item.done") &&
         isRecord(event.item)
       ) {
         const key = outputItemKey(event.item);
-        const index = typeof event.output_index === "number" ? event.output_index : streamedOutput.size;
+        const index =
+          typeof event.output_index === "number" ? event.output_index : streamedOutput.size;
         if (key) streamedOutput.set(key, { index, item: event.item });
       } else if (
         event.type === "response.function_call_arguments.done" &&

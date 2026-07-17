@@ -14,9 +14,7 @@ const TOOL_LABELS: Record<string, { active: string; complete: string; icon: stri
 };
 
 function displayName(name: string) {
-  return name
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return name.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function safeJson(value: unknown) {
@@ -72,10 +70,14 @@ function Reasoning({ content, streaming }: { content: string; streaming: boolean
   return (
     <details className={`reasoning-trace ${streaming ? "streaming" : ""}`} open={streaming}>
       <summary>
-        <span className="reasoning-spark" aria-hidden="true">✦</span>
+        <span className="reasoning-spark" aria-hidden="true">
+          ✦
+        </span>
         <span>{streaming ? "Thinking" : "Reasoning"}</span>
         {streaming && <span className="reasoning-live">Live</span>}
-        <span className="disclosure-arrow" aria-hidden="true">⌄</span>
+        <span className="disclosure-arrow" aria-hidden="true">
+          ⌄
+        </span>
       </summary>
       <div className="reasoning-content">
         <Markdown>{content}</Markdown>
@@ -98,11 +100,7 @@ function ToolCall({
   const complete = part.state === "complete" || result?.state === "complete";
   const active = messageStreaming && !complete && !failed;
   const labels = TOOL_LABELS[part.name];
-  const title = labels
-    ? active
-      ? labels.active
-      : labels.complete
-    : displayName(part.name);
+  const title = labels ? (active ? labels.active : labels.complete) : displayName(part.name);
   const input = safeJson(part.input ?? part.arguments);
   const output = contentOf(result) || safeJson(part.output);
   const error = result?.error;
@@ -110,24 +108,32 @@ function ToolCall({
   return (
     <details className={`tool-call ${active ? "active" : ""} ${failed ? "failed" : ""}`}>
       <summary>
-        <span className="tool-icon" aria-hidden="true">{labels?.icon ?? "↳"}</span>
+        <span className="tool-icon" aria-hidden="true">
+          {labels?.icon ?? "↳"}
+        </span>
         <span className="tool-title">{failed ? `${title} failed` : title}</span>
         <span className="tool-state">
           {active ? <span className="tool-spinner" /> : failed ? "!" : "✓"}
         </span>
-        <span className="disclosure-arrow" aria-hidden="true">⌄</span>
+        <span className="disclosure-arrow" aria-hidden="true">
+          ⌄
+        </span>
       </summary>
       <div className="tool-details">
         {input && (
           <section>
             <span>Input</span>
-            <pre><code>{input}</code></pre>
+            <pre>
+              <code>{input}</code>
+            </pre>
           </section>
         )}
         {(output || error) && (
           <section>
             <span>{error ? "Error" : "Result"}</span>
-            <pre><code>{error ?? output}</code></pre>
+            <pre>
+              <code>{error ?? output}</code>
+            </pre>
           </section>
         )}
       </div>
@@ -157,7 +163,11 @@ function Part({
   }
   if (part.type === "structured-output") {
     const value = part.data ?? part.partial ?? part.raw;
-    return value ? <pre className="structured-output"><code>{safeJson(value)}</code></pre> : null;
+    return value ? (
+      <pre className="structured-output">
+        <code>{safeJson(value)}</code>
+      </pre>
+    ) : null;
   }
   return null;
 }
@@ -196,22 +206,41 @@ export function ChatMessage({
 
   return (
     <article className={`message ${message.role}`} aria-label={`${message.role} message`}>
-      {message.role === "assistant" && <div className="avatar" aria-hidden="true">A</div>}
+      {message.role === "assistant" && (
+        <div className="avatar" aria-hidden="true">
+          A
+        </div>
+      )}
       <div className="message-content">
         <span className="message-author">{message.role === "user" ? "You" : "Autodekt"}</span>
         <div className="message-parts">
           {visibleParts.map((part, index) => (
-            <Part key={part.type === "tool-call" ? part.id : `${part.type}-${index}`} part={part} parts={message.parts} streaming={streaming} />
+            <Part
+              key={part.type === "tool-call" ? part.id : `${part.type}-${index}`}
+              part={part}
+              parts={message.parts}
+              streaming={streaming}
+            />
           ))}
           {streaming && <span className="streaming-caret message-caret" aria-hidden="true" />}
         </div>
         {!streaming && message.role === "assistant" && (
           <div className="message-actions">
-            <button type="button" onClick={() => void copy()} aria-label="Copy response" title="Copy response">
+            <button
+              type="button"
+              onClick={() => void copy()}
+              aria-label="Copy response"
+              title="Copy response"
+            >
               {copied ? "✓ Copied" : "▢ Copy"}
             </button>
             {canRetry && (
-              <button type="button" onClick={onRetry} aria-label="Regenerate response" title="Regenerate response">
+              <button
+                type="button"
+                onClick={onRetry}
+                aria-label="Regenerate response"
+                title="Regenerate response"
+              >
                 ↻ Retry
               </button>
             )}

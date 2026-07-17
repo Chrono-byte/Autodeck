@@ -514,7 +514,9 @@ button:disabled {
 }
 .settings-title h1 {
   margin: 9px 0 8px;
-  font: 500 clamp(38px, 5vw, 54px)/1 Newsreader, serif;
+  font:
+    500 clamp(38px, 5vw, 54px)/1 Newsreader,
+    serif;
   letter-spacing: -0.025em;
 }
 .settings-title > p:last-child,
@@ -533,7 +535,9 @@ button:disabled {
 }
 .settings-section-heading h2 {
   margin: 0 0 3px;
-  font: 600 22px Newsreader, serif;
+  font:
+    600 22px Newsreader,
+    serif;
 }
 .settings-card {
   border: 1px solid #d7d4ca;
@@ -556,7 +560,9 @@ button:disabled {
   border-radius: 50%;
   color: white;
   background: var(--green);
-  font: 600 15px Newsreader, serif;
+  font:
+    600 15px Newsreader,
+    serif;
 }
 .profile-settings-card > div:nth-child(2) {
   min-width: 0;
@@ -603,7 +609,9 @@ button:disabled {
   border-radius: 10px;
   color: #4a5b4e;
   background: #eff1eb;
-  font: 600 10px "DM Mono", monospace;
+  font:
+    600 10px "DM Mono",
+    monospace;
 }
 .connection-copy {
   min-width: 0;
@@ -624,7 +632,9 @@ button:disabled {
   border-radius: 9px;
   color: #787a72;
   background: #ecebe5;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
 }
 .connection-status i {
   width: 5px;
@@ -675,7 +685,9 @@ button:disabled {
 .settings-device-code strong {
   grid-row: span 2;
   color: #263b2e;
-  font: 600 16px "DM Mono", monospace;
+  font:
+    600 16px "DM Mono",
+    monospace;
   letter-spacing: 0.12em;
 }
 .settings-device-code a {
@@ -829,7 +841,10 @@ button:disabled {
   border-radius: 10px;
   color: var(--ink);
   background: #fffefa;
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 .suggestion-grid button:hover {
   border-color: #a9b6ac;
@@ -888,7 +903,9 @@ button:disabled {
   display: block;
   margin: 2px 0 9px;
   color: #66665e;
-  font: 500 9px "DM Mono", monospace;
+  font:
+    500 9px "DM Mono",
+    monospace;
   letter-spacing: 0.04em;
 }
 .message.user .message-author {
@@ -927,9 +944,15 @@ button:disabled {
   font-weight: 600;
   line-height: 1.2;
 }
-.markdown h1 { font-size: 25px; }
-.markdown h2 { font-size: 21px; }
-.markdown h3 { font-size: 17px; }
+.markdown h1 {
+  font-size: 25px;
+}
+.markdown h2 {
+  font-size: 21px;
+}
+.markdown h3 {
+  font-size: 17px;
+}
 .markdown ul,
 .markdown ol {
   padding-left: 23px;
@@ -959,7 +982,9 @@ button:disabled {
   border-radius: 5px;
   color: #315844;
   background: #f1efe8;
-  font: 11px/1.5 "DM Mono", monospace;
+  font:
+    11px/1.5 "DM Mono",
+    monospace;
 }
 .markdown pre,
 .structured-output {
@@ -970,7 +995,9 @@ button:disabled {
   border-radius: 9px;
   color: #e9eee9;
   background: #252821;
-  font: 11px/1.65 "DM Mono", monospace;
+  font:
+    11px/1.65 "DM Mono",
+    monospace;
   white-space: pre;
 }
 .markdown pre code {
@@ -1013,7 +1040,9 @@ button:disabled {
   color: #65675f;
   cursor: pointer;
   list-style: none;
-  font: 500 10px "DM Mono", monospace;
+  font:
+    500 10px "DM Mono",
+    monospace;
   user-select: none;
 }
 .reasoning-trace summary::-webkit-details-marker,
@@ -1090,7 +1119,11 @@ details[open] > summary .disclosure-arrow {
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .tool-details {
   display: grid;
   gap: 10px;
@@ -1100,7 +1133,9 @@ details[open] > summary .disclosure-arrow {
   display: block;
   margin-bottom: 5px;
   color: #898980;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
@@ -1112,7 +1147,9 @@ details[open] > summary .disclosure-arrow {
   border-radius: 6px;
   color: #dfe5df;
   background: #2c302a;
-  font: 10px/1.55 "DM Mono", monospace;
+  font:
+    10px/1.55 "DM Mono",
+    monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1133,7 +1170,9 @@ details[open] > summary .disclosure-arrow {
   border-radius: 5px;
   color: #77786f;
   background: transparent;
-  font: 9px "DM Mono", monospace;
+  font:
+    9px "DM Mono",
+    monospace;
 }
 .message-actions button:hover {
   color: #345744;
@@ -1152,7 +1191,11 @@ details[open] > summary .disclosure-arrow {
 .message-caret {
   margin-top: 2px;
 }
-@keyframes caret-blink { 50% { opacity: 0; } }
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
 .chat-scroll-anchor {
   height: 1px;
 }
@@ -1233,7 +1276,9 @@ details[open] > summary .disclosure-arrow {
   padding: 7px 10px;
   border-bottom: 1px solid #dedcd3;
   color: #77776f;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
@@ -1272,7 +1317,9 @@ details[open] > summary .disclosure-arrow {
 .message-queue li::before {
   content: counter(queued-message);
   color: #97978f;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
 }
 .message-queue li > span {
   overflow: hidden;
@@ -1296,7 +1343,9 @@ details[open] > summary .disclosure-arrow {
   width: auto;
   padding: 0 7px;
   border-radius: 13px;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
@@ -1311,7 +1360,9 @@ details[open] > summary .disclosure-arrow {
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 9px 30px #35352b10;
-  transition: border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 .jump-to-turn {
   position: absolute;
@@ -1329,7 +1380,9 @@ details[open] > summary .disclosure-arrow {
   box-shadow: 0 7px 22px #32362f22;
   transform: translateX(-50%);
   animation: jump-button-in 150ms ease-out;
-  font: 500 9px "DM Mono", monospace;
+  font:
+    500 9px "DM Mono",
+    monospace;
   white-space: nowrap;
 }
 .jump-to-turn:hover {
@@ -1342,11 +1395,16 @@ details[open] > summary .disclosure-arrow {
   font: 13px/1 sans-serif;
 }
 @keyframes jump-button-in {
-  from { opacity: 0; transform: translate(-50%, 5px); }
+  from {
+    opacity: 0;
+    transform: translate(-50%, 5px);
+  }
 }
 .chat-composer:focus-within {
   border-color: #9eab9f;
-  box-shadow: 0 12px 34px #35352b17, 0 0 0 2px #66836d12;
+  box-shadow:
+    0 12px 34px #35352b17,
+    0 0 0 2px #66836d12;
 }
 .chat-composer textarea {
   width: 100%;
@@ -1873,13 +1931,17 @@ details[open] > summary .disclosure-arrow {
   position: absolute;
   inset: 0 2px;
   background: #ffffff12;
-  transition: background 130ms ease, box-shadow 130ms ease;
+  transition:
+    background 130ms ease,
+    box-shadow 130ms ease;
 }
 .workspace-resizer:hover span,
 .workspace-resizer:focus-visible span,
 .workspace-columns.resizing .workspace-resizer span {
   background: #78a286;
-  box-shadow: 0 0 0 1px #78a28655, 0 0 12px #78a28644;
+  box-shadow:
+    0 0 0 1px #78a28655,
+    0 0 12px #78a28644;
 }
 .workspace-columns.resizing,
 .workspace-columns.resizing * {
@@ -2006,7 +2068,9 @@ details[open] > summary .disclosure-arrow {
   border-radius: 12px;
   color: white;
   background: #101211dc;
-  font: 600 10px "DM Mono", monospace;
+  font:
+    600 10px "DM Mono",
+    monospace;
 }
 .preview-copy {
   display: grid;
@@ -2041,7 +2105,9 @@ details[open] > summary .disclosure-arrow {
   display: grid;
   gap: 3px;
   color: var(--deck-muted);
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
   text-transform: uppercase;
 }
 .preview-editor input,
@@ -2074,9 +2140,7 @@ details[open] > summary .disclosure-arrow {
   padding: 14px 14px 50px;
   columns: 190px;
   column-gap: 12px;
-  background:
-    radial-gradient(circle at 50% 0, #3b493f33, transparent 32%),
-    var(--deck-surface);
+  background: radial-gradient(circle at 50% 0, #3b493f33, transparent 32%), var(--deck-surface);
 }
 .deck-browser .card-group {
   width: 100%;
@@ -2136,7 +2200,9 @@ details[open] > summary .disclosure-arrow {
   color: white;
   background: #323733;
   text-align: left;
-  transition: height 150ms ease, filter 120ms ease;
+  transition:
+    height 150ms ease,
+    filter 120ms ease;
 }
 .stack-card:last-child {
   border-bottom: 0;
@@ -2183,7 +2249,9 @@ details[open] > summary .disclosure-arrow {
 .stack-card strong {
   grid-column: 2;
   overflow: hidden;
-  font: 600 8px Manrope, sans-serif;
+  font:
+    600 8px Manrope,
+    sans-serif;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2191,7 +2259,9 @@ details[open] > summary .disclosure-arrow {
   grid-column: 3;
   justify-self: end;
   color: #e7ebe7;
-  font: 600 8px "DM Mono", monospace;
+  font:
+    600 8px "DM Mono",
+    monospace;
 }
 .stack-quantity {
   grid-column: 1;
@@ -2203,7 +2273,9 @@ details[open] > summary .disclosure-arrow {
   border-radius: 50%;
   color: white;
   background: #355c45e8;
-  font: 600 8px "DM Mono", monospace;
+  font:
+    600 8px "DM Mono",
+    monospace;
 }
 .stack-card:not(:has(.stack-quantity)) strong {
   grid-column: 1 / 3;
@@ -2236,7 +2308,9 @@ details[open] > summary .disclosure-arrow {
   color: #bec6c0;
   background: #345744;
   box-shadow: 0 -5px 18px #0003;
-  font: 8px "DM Mono", monospace;
+  font:
+    8px "DM Mono",
+    monospace;
 }
 .deck-summary-bar > span {
   white-space: nowrap;

@@ -40,7 +40,12 @@ function localPreferences() {
     if (saved.model === "local" || CODEX_MODELS.some((item) => item.value === saved.model)) {
       defaults.model = saved.model as ModelChoice;
     }
-    if (saved.effort === "low" || saved.effort === "medium" || saved.effort === "high" || saved.effort === "xhigh") {
+    if (
+      saved.effort === "low" ||
+      saved.effort === "medium" ||
+      saved.effort === "high" ||
+      saved.effort === "xhigh"
+    ) {
       defaults.reasoningEffort = saved.effort;
     }
     if (saved.speed === "standard" || saved.speed === "fast") defaults.speed = saved.speed;
@@ -224,265 +229,288 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
         }}
       >
         <div className="chat-message-list" ref={messagesContentRef}>
-        {chat.messages.length === 0 && (
-          <div className="chat-empty">
-            <p className="eyebrow">DECK STUDY</p>
-            <h1>How should we shape {deck.name}?</h1>
-            <p>
-              I can inspect the live deck, verify cards, research its structure, and edit the list
-              with you.
-            </p>
-            <div className="suggestion-grid">
-              <button type="button" onClick={() => usePrompt("Analyze my deck's game plan, strengths, and biggest weaknesses.")}>
-                <span>Analyze the deck</span>
-                <small>Find structural gaps and pressure points</small>
-              </button>
-              <button type="button" onClick={() => usePrompt("Recommend five high-impact cuts and replacements, with reasons.")}>
-                <span>Suggest five swaps</span>
-                <small>Make focused, evidence-backed upgrades</small>
-              </button>
-              <button type="button" onClick={() => usePrompt("Check my mana base and curve, then recommend improvements.")}>
-                <span>Review mana & curve</span>
-                <small>Balance lands, ramp, and color needs</small>
-              </button>
+          {chat.messages.length === 0 && (
+            <div className="chat-empty">
+              <p className="eyebrow">DECK STUDY</p>
+              <h1>How should we shape {deck.name}?</h1>
+              <p>
+                I can inspect the live deck, verify cards, research its structure, and edit the list
+                with you.
+              </p>
+              <div className="suggestion-grid">
+                <button
+                  type="button"
+                  onClick={() =>
+                    usePrompt("Analyze my deck's game plan, strengths, and biggest weaknesses.")
+                  }
+                >
+                  <span>Analyze the deck</span>
+                  <small>Find structural gaps and pressure points</small>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    usePrompt("Recommend five high-impact cuts and replacements, with reasons.")
+                  }
+                >
+                  <span>Suggest five swaps</span>
+                  <small>Make focused, evidence-backed upgrades</small>
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    usePrompt("Check my mana base and curve, then recommend improvements.")
+                  }
+                >
+                  <span>Review mana & curve</span>
+                  <small>Balance lands, ramp, and color needs</small>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
-        {chat.messages.map((message, index) => (
-          <ChatMessage
-            key={message.id}
-            message={message}
-            streaming={chat.isLoading && index === chat.messages.length - 1 && message.role === "assistant"}
-            canRetry={index === chat.messages.length - 1}
-            onRetry={() => {
-              followStreamRef.current = true;
-              void chat.reload();
-            }}
-          />
-        ))}
-        {chat.isLoading && chat.messages.at(-1)?.role !== "assistant" && (
-          <div className="thinking">
-            <i />
-            <i />
-            <i /> Preparing the workspace
-          </div>
-        )}
-        <div className="chat-scroll-anchor" aria-hidden="true" />
+          )}
+          {chat.messages.map((message, index) => (
+            <ChatMessage
+              key={message.id}
+              message={message}
+              streaming={
+                chat.isLoading && index === chat.messages.length - 1 && message.role === "assistant"
+              }
+              canRetry={index === chat.messages.length - 1}
+              onRetry={() => {
+                followStreamRef.current = true;
+                void chat.reload();
+              }}
+            />
+          ))}
+          {chat.isLoading && chat.messages.at(-1)?.role !== "assistant" && (
+            <div className="thinking">
+              <i />
+              <i />
+              <i /> Preparing the workspace
+            </div>
+          )}
+          <div className="chat-scroll-anchor" aria-hidden="true" />
         </div>
       </div>
       {chat.error && (
         <div className="chat-error" role="alert">
-          <span><strong>Response interrupted.</strong> {chat.error.message}</span>
-          <button type="button" onClick={() => void chat.reload()}>Try again</button>
+          <span>
+            <strong>Response interrupted.</strong> {chat.error.message}
+          </span>
+          <button type="button" onClick={() => void chat.reload()}>
+            Try again
+          </button>
         </div>
       )}
       <div className="chat-composer-zone">
-      {chat.queuedMessages.length > 0 && (
-        <div className="message-queue" aria-label="Queued messages">
-          <div className="message-queue-header">
-            <span>
-              {chat.queuedMessages.length} queued
-              {chat.error ? " · paused until retry" : " · sends automatically"}
-            </span>
-            <button type="button" onClick={chat.clearQueuedMessages}>Clear</button>
-          </div>
-          <ol>
-            {chat.queuedMessages.map((message) => (
-              <li key={message.id}>
-                <span>{message.content}</span>
-                <div className="message-queue-actions">
-                  <button
-                    type="button"
-                    className="message-queue-steer"
-                    onClick={() => chat.steerQueuedMessage(message.id)}
-                    aria-label={`Steer with queued message: ${message.content}`}
-                    title="Stop the current response and send this next"
-                  >
-                    Steer
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => chat.removeQueuedMessage(message.id)}
-                    aria-label={`Remove queued message: ${message.content}`}
-                    title="Remove from queue"
-                  >
-                    ×
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-      {showJumpToTurn && (
-        <button type="button" className="jump-to-turn" onClick={jumpToCurrentTurn}>
-          <span aria-hidden="true">↓</span> Jump to current turn
-        </button>
-      )}
-      <form
-        className="chat-composer"
-        onSubmit={(event) => {
-          event.preventDefault();
-          submit();
-        }}
-      >
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={`Ask about ${deck.commanderName ?? deck.name}, request cuts, or tell me to edit the list…`}
-          rows={3}
-          aria-label="Message Autodekt"
-        />
-        <div className="composer-footer">
-          <span className="composer-hint">Deck-aware · card text verified through Scryfall</span>
-          <div className="composer-actions">
-            <div className="model-selector" ref={selectorRef}>
-              <button
-                type="button"
-                className="model-selector-trigger"
-                onClick={() => {
-                  setSelectorOpen((open) => !open);
-                  setSelectorPanel("root");
-                }}
-                aria-expanded={selectorOpen}
-              >
-                <span>{activeModelLabel}</span>
-                <span className="selector-chevron">⌄</span>
+        {chat.queuedMessages.length > 0 && (
+          <div className="message-queue" aria-label="Queued messages">
+            <div className="message-queue-header">
+              <span>
+                {chat.queuedMessages.length} queued
+                {chat.error ? " · paused until retry" : " · sends automatically"}
+              </span>
+              <button type="button" onClick={chat.clearQueuedMessages}>
+                Clear
               </button>
-              {selectorOpen && (
-                <div className="model-selector-menu" role="menu">
-                  <button
-                    type="button"
-                    className={selectorPanel === "model" ? "active" : ""}
-                    onClick={() => setSelectorPanel("model")}
-                  >
-                    <span>Model</span>
-                    <span>{modelLabel}　›</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={selectorPanel === "effort" ? "active" : ""}
-                    onClick={() => setSelectorPanel("effort")}
-                  >
-                    <span>Effort</span>
-                    <span>{titleCase(reasoningEffort)}　›</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={selectorPanel === "speed" ? "active" : ""}
-                    onClick={() => setSelectorPanel("speed")}
-                  >
-                    <span>Speed</span>
-                    <span>{titleCase(speed)}　›</span>
-                  </button>
-                  {selectorPanel !== "root" && (
-                    <div className="model-selector-submenu">
-                      <p>
-                        {selectorPanel === "model"
-                          ? "Model"
-                          : selectorPanel === "effort"
-                            ? "Effort"
-                            : "Speed"}
-                      </p>
-                      {selectorPanel === "model" && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setModelChoice("local");
-                              setSelectorOpen(false);
-                              setSelectorPanel("root");
-                            }}
-                          >
-                            <span>Local Gemma</span>
-                            <span>{modelChoice === "local" ? "✓" : ""}</span>
-                          </button>
-                          <div className="model-selector-divider" />
-                          {CODEX_MODELS.map((model) => (
+            </div>
+            <ol>
+              {chat.queuedMessages.map((message) => (
+                <li key={message.id}>
+                  <span>{message.content}</span>
+                  <div className="message-queue-actions">
+                    <button
+                      type="button"
+                      className="message-queue-steer"
+                      onClick={() => chat.steerQueuedMessage(message.id)}
+                      aria-label={`Steer with queued message: ${message.content}`}
+                      title="Stop the current response and send this next"
+                    >
+                      Steer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => chat.removeQueuedMessage(message.id)}
+                      aria-label={`Remove queued message: ${message.content}`}
+                      title="Remove from queue"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+        {showJumpToTurn && (
+          <button type="button" className="jump-to-turn" onClick={jumpToCurrentTurn}>
+            <span aria-hidden="true">↓</span> Jump to current turn
+          </button>
+        )}
+        <form
+          className="chat-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            submit();
+          }}
+        >
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={`Ask about ${deck.commanderName ?? deck.name}, request cuts, or tell me to edit the list…`}
+            rows={3}
+            aria-label="Message Autodekt"
+          />
+          <div className="composer-footer">
+            <span className="composer-hint">Deck-aware · card text verified through Scryfall</span>
+            <div className="composer-actions">
+              <div className="model-selector" ref={selectorRef}>
+                <button
+                  type="button"
+                  className="model-selector-trigger"
+                  onClick={() => {
+                    setSelectorOpen((open) => !open);
+                    setSelectorPanel("root");
+                  }}
+                  aria-expanded={selectorOpen}
+                >
+                  <span>{activeModelLabel}</span>
+                  <span className="selector-chevron">⌄</span>
+                </button>
+                {selectorOpen && (
+                  <div className="model-selector-menu" role="menu">
+                    <button
+                      type="button"
+                      className={selectorPanel === "model" ? "active" : ""}
+                      onClick={() => setSelectorPanel("model")}
+                    >
+                      <span>Model</span>
+                      <span>{modelLabel}　›</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={selectorPanel === "effort" ? "active" : ""}
+                      onClick={() => setSelectorPanel("effort")}
+                    >
+                      <span>Effort</span>
+                      <span>{titleCase(reasoningEffort)}　›</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={selectorPanel === "speed" ? "active" : ""}
+                      onClick={() => setSelectorPanel("speed")}
+                    >
+                      <span>Speed</span>
+                      <span>{titleCase(speed)}　›</span>
+                    </button>
+                    {selectorPanel !== "root" && (
+                      <div className="model-selector-submenu">
+                        <p>
+                          {selectorPanel === "model"
+                            ? "Model"
+                            : selectorPanel === "effort"
+                              ? "Effort"
+                              : "Speed"}
+                        </p>
+                        {selectorPanel === "model" && (
+                          <>
                             <button
                               type="button"
-                              key={model.value}
-                              disabled={!codexStatus?.connected}
-                              title={
-                                codexStatus?.connected
-                                  ? undefined
-                                  : "Connect OpenAI Codex to use this model"
-                              }
                               onClick={() => {
-                                setModelChoice(model.value);
+                                setModelChoice("local");
                                 setSelectorOpen(false);
                                 setSelectorPanel("root");
                               }}
                             >
-                              <span>{model.label}</span>
-                              <span>{activeChoice === model.value ? "✓" : ""}</span>
+                              <span>Local Gemma</span>
+                              <span>{modelChoice === "local" ? "✓" : ""}</span>
+                            </button>
+                            <div className="model-selector-divider" />
+                            {CODEX_MODELS.map((model) => (
+                              <button
+                                type="button"
+                                key={model.value}
+                                disabled={!codexStatus?.connected}
+                                title={
+                                  codexStatus?.connected
+                                    ? undefined
+                                    : "Connect OpenAI Codex to use this model"
+                                }
+                                onClick={() => {
+                                  setModelChoice(model.value);
+                                  setSelectorOpen(false);
+                                  setSelectorPanel("root");
+                                }}
+                              >
+                                <span>{model.label}</span>
+                                <span>{activeChoice === model.value ? "✓" : ""}</span>
+                              </button>
+                            ))}
+                          </>
+                        )}
+                        {selectorPanel === "effort" &&
+                          (["low", "medium", "high", "xhigh"] as const).map((effort) => (
+                            <button
+                              type="button"
+                              key={effort}
+                              onClick={() => {
+                                setReasoningEffort(effort);
+                                setSelectorOpen(false);
+                                setSelectorPanel("root");
+                              }}
+                            >
+                              <span>{titleCase(effort)}</span>
+                              <span>{reasoningEffort === effort ? "✓" : ""}</span>
                             </button>
                           ))}
-                        </>
-                      )}
-                      {selectorPanel === "effort" &&
-                        (["low", "medium", "high", "xhigh"] as const).map((effort) => (
-                          <button
-                            type="button"
-                            key={effort}
-                            onClick={() => {
-                              setReasoningEffort(effort);
-                              setSelectorOpen(false);
-                              setSelectorPanel("root");
-                            }}
-                          >
-                            <span>{titleCase(effort)}</span>
-                            <span>{reasoningEffort === effort ? "✓" : ""}</span>
-                          </button>
-                        ))}
-                      {selectorPanel === "speed" &&
-                        (["standard", "fast"] as const).map((option) => (
-                          <button
-                            type="button"
-                            key={option}
-                            onClick={() => {
-                              setSpeed(option);
-                              setSelectorOpen(false);
-                              setSelectorPanel("root");
-                            }}
-                          >
-                            <span>{titleCase(option)}</span>
-                            <span>{speed === option ? "✓" : ""}</span>
-                          </button>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
+                        {selectorPanel === "speed" &&
+                          (["standard", "fast"] as const).map((option) => (
+                            <button
+                              type="button"
+                              key={option}
+                              onClick={() => {
+                                setSpeed(option);
+                                setSelectorOpen(false);
+                                setSelectorPanel("root");
+                              }}
+                            >
+                              <span>{titleCase(option)}</span>
+                              <span>{speed === option ? "✓" : ""}</span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                className="stream-stop"
+                hidden={!chat.isLoading}
+                aria-label="Stop response"
+                title="Stop response"
+                onClick={() => chat.stop()}
+              >
+                <span className="stop-icon" aria-hidden="true" />
+              </button>
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                aria-label={chat.isLoading ? "Queue message" : "Send message"}
+                title={chat.isLoading ? "Queue message" : "Send message"}
+              >
+                ↑
+              </button>
             </div>
-            <button
-              type="button"
-              className="stream-stop"
-              hidden={!chat.isLoading}
-              aria-label="Stop response"
-              title="Stop response"
-              onClick={() => chat.stop()}
-            >
-              <span className="stop-icon" aria-hidden="true" />
-            </button>
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              aria-label={chat.isLoading ? "Queue message" : "Send message"}
-              title={chat.isLoading ? "Queue message" : "Send message"}
-            >
-              ↑
-            </button>
           </div>
-        </div>
-      </form>
+        </form>
       </div>
     </section>
   );

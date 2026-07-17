@@ -13,11 +13,7 @@ async function ownerId(ctx: {
   return identity.subject;
 }
 
-async function syncDeckCommanderMetadata(
-  ctx: MutationCtx,
-  deckId: Id<"decks">,
-  updatedAt: number,
-) {
+async function syncDeckCommanderMetadata(ctx: MutationCtx, deckId: Id<"decks">, updatedAt: number) {
   const commanders = await ctx.db
     .query("deckCards")
     .withIndex("by_deck", (q) => q.eq("deckId", deckId))

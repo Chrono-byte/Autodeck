@@ -95,7 +95,11 @@ export function DeckEditor({
   const syncCommanderMetadata = useMutation(api.deckCards.syncCommanderMetadata);
 
   const cardNamesKey = useMemo(
-    () => cards.map((card) => card.name).sort().join("\n"),
+    () =>
+      cards
+        .map((card) => card.name)
+        .sort()
+        .join("\n"),
     [cards],
   );
 
@@ -105,7 +109,9 @@ export function DeckEditor({
       .sort((left, right) => left.createdAt - right.createdAt);
     const colors = new Set(commanders.flatMap((commander) => commander.colorIdentity));
     return {
-      name: commanders.length ? commanders.map((commander) => commander.name).join(" & ") : undefined,
+      name: commanders.length
+        ? commanders.map((commander) => commander.name).join(" & ")
+        : undefined,
       colors: ["W", "U", "B", "R", "G"].filter((color) => colors.has(color)),
     };
   }, [cards]);
@@ -427,7 +433,10 @@ export function DeckEditor({
                   defaultValue={selectedCard.tags.join(", ")}
                   placeholder="Ramp, Draw…"
                   onBlur={(event) =>
-                    void updateTags({ cardId: selectedCard._id, tags: event.target.value.split(",") })
+                    void updateTags({
+                      cardId: selectedCard._id,
+                      tags: event.target.value.split(","),
+                    })
                   }
                 />
               </label>
@@ -469,8 +478,8 @@ export function DeckEditor({
                         loading="lazy"
                         src={
                           isSelected
-                            ? image?.imageUrl ?? fallbackImage(card.name, "normal")
-                            : image?.artCropUrl ?? fallbackImage(card.name, "art_crop")
+                            ? (image?.imageUrl ?? fallbackImage(card.name, "normal"))
+                            : (image?.artCropUrl ?? fallbackImage(card.name, "art_crop"))
                         }
                         alt=""
                       />

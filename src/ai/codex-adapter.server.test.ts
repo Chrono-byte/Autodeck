@@ -29,15 +29,11 @@ describe("Codex Responses turn replay", () => {
       output: '{"cards":[]}',
     };
 
-    const replay = buildCodexReplayInput(
-      initial,
-      [[reasoning, functionCall] as never],
-      [
-        { role: "user", content: "Inspect the deck" },
-        { type: "function_call", call_id: "call_1", name: "get_active_deck", arguments: "{}" },
-        functionOutput,
-      ] as never,
-    );
+    const replay = buildCodexReplayInput(initial, [[reasoning, functionCall] as never], [
+      { role: "user", content: "Inspect the deck" },
+      { type: "function_call", call_id: "call_1", name: "get_active_deck", arguments: "{}" },
+      functionOutput,
+    ] as never);
 
     expect(replay).toEqual([initial[0], reasoning, functionCall, functionOutput]);
   });
@@ -161,7 +157,7 @@ describe("Codex reasoning summary normalization", () => {
     } as never);
 
     expect(events).toHaveLength(2);
-    expect((events[0] as unknown as { type: string; delta: string })).toMatchObject({
+    expect(events[0] as unknown as { type: string; delta: string }).toMatchObject({
       type: "response.reasoning_summary_text.delta",
       delta: "Completed reasoning summary",
     });
