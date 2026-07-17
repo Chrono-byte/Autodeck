@@ -3,6 +3,7 @@ import { openaiCompatibleText } from '@tanstack/ai-openai/compatible'
 import { createFileRoute } from '@tanstack/react-router'
 import { analyzeDeckTool, comprehensiveRulesTool, getCardTool, searchCardsTool } from '../ai/tools.server'
 import { SYSTEM_PROMPT } from '../ai/system-prompt'
+import { editActiveDeckDefinition, getActiveDeckDefinition } from '../ai/deck-tools'
 
 export const Route = createFileRoute('/api/chat')({
   server: {
@@ -35,6 +36,8 @@ export const Route = createFileRoute('/api/chat')({
             searchCardsTool,
             analyzeDeckTool,
             comprehensiveRulesTool,
+            getActiveDeckDefinition,
+            editActiveDeckDefinition,
           ],
           agentLoopStrategy: maxIterations(12),
         })
