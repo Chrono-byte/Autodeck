@@ -1,23 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UIMessage } from "@tanstack/ai";
 import { fetchServerSentEvents, useChat } from "@tanstack/ai-react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { authClient } from "../lib/auth-client";
-import {
-  editActiveDeckClientTool,
-  getActiveDeckClientTool,
-  type DeckToolContext,
-} from "../ai/deck-tools";
-
-type ResolvedCard = {
-  name: string;
-  typeLine: string;
-  oracleText?: string;
-  manaValue: number;
-  colorIdentity: string[];
-};
 
 const CODEX_MODELS = [
   { value: "gpt-5.6-sol", label: "5.6 Sol" },
@@ -63,8 +50,6 @@ export function DeckChat({
   const selectorRef = useRef<HTMLDivElement>(null);
   const codexStatus = useQuery(api.openaiCodex.status);
   const saveMessages = useMutation(api.threads.saveMessages);
-  const upsertCard = useMutation(api.deckCards.upsert);
-  const removeCard = useMutation(api.deckCards.remove);
 
   useEffect(() => {
     try {
@@ -102,80 +87,28 @@ export function DeckChat({
     return () => document.removeEventListener("pointerdown", close);
   }, [selectorOpen]);
 
-  const context = useMemo<DeckToolContext>(
-    () => ({
-      readDeck: () => ({
-        deck: {
-          name: deck.name,
-          commanderName: deck.commanderName,
-          colorIdentity: deck.colorIdentity,
-        },
-        cards: cards.map(({ name, quantity, zone, typeLine, oracleText, manaValue, tags }) => ({
-          name,
-          quantity,
-          zone,
-          typeLine,
-          oracleText,
-          manaValue,
-          tags,
-        })),
-      }),
-      editDeck: async (edit) => {
-        if (edit.action === "remove") {
-          const card = cards.find(
-            (item) => item.name.toLocaleLowerCase() === edit.cardName.toLocaleLowerCase(),
-          );
-          if (!card)
-            return { success: false, message: `${edit.cardName} is not in the active deck.` };
-          await removeCard({ cardId: card._id, threadId: thread._id, actor: "assistant" });
-          return { success: true, message: `Removed ${card.name}.` };
-        }
-        const response = await fetch(
-          `/api/cards/resolve?name=${encodeURIComponent(edit.cardName)}`,
-        );
-        const resolved = (await response.json()) as ResolvedCard & { error?: string };
-        if (!response.ok)
-          return { success: false, message: resolved.error ?? "Card lookup failed." };
-        await upsertCard({
-          deckId: deck._id,
-          threadId: thread._id,
-          actor: "assistant",
-          name: resolved.name,
-          quantity: edit.quantity,
-          zone: edit.zone,
-          typeLine: resolved.typeLine,
-          oracleText: resolved.oracleText,
-          manaValue: resolved.manaValue,
-          colorIdentity: resolved.colorIdentity,
-          tags: edit.tags,
-        });
-        return {
-          success: true,
-          message: `Saved ${edit.quantity} × ${resolved.name} to ${edit.zone}.`,
-        };
-      },
-    }),
-    [cards, deck, removeCard, thread._id, upsertCard],
-  );
-
   const chat = useChat({
     id: String(thread._id),
     connection: fetchServerSentEvents("/api/chat", async () => {
       const { data, error } = await authClient.convex.token();
       if (error || !data?.token) throw new Error("Your session has expired. Please sign in again.");
+      const selectedModel = codexStatus?.connected ? modelChoice : "local";
       return {
-        headers: { Authorization: `Bearer ${data.token}` },
+        headers: {
+          Authorization: `Bearer ${data.token}`,
+          "x-request-id": crypto.randomUUID(),
+        },
         body: {
-          provider: modelChoice === "local" ? "local" : "openai-codex",
-          model: modelChoice === "local" ? undefined : modelChoice,
+          provider: selectedModel === "local" ? "local" : "openai-codex",
+          model: selectedModel === "local" ? undefined : selectedModel,
           reasoningEffort,
           speed,
+          deckId: deck._id,
+          threadId: thread._id,
         },
       };
     }),
     initialMessages: (thread.messageState ?? []) as never[],
-    tools: [getActiveDeckClientTool, editActiveDeckClientTool],
-    context,
   });
 
   useEffect(() => {
@@ -276,7 +209,6 @@ export function DeckChat({
               <button
                 type="button"
                 className="model-selector-trigger"
-                disabled={!codexStatus?.connected}
                 onClick={() => {
                   setSelectorOpen((open) => !open);
                   setSelectorPanel("root");
@@ -321,21 +253,42 @@ export function DeckChat({
                             ? "Effort"
                             : "Speed"}
                       </p>
-                      {selectorPanel === "model" &&
-                        CODEX_MODELS.map((model) => (
+                      {selectorPanel === "model" && (
+                        <>
                           <button
                             type="button"
-                            key={model.value}
                             onClick={() => {
-                              setModelChoice(model.value);
+                              setModelChoice("local");
                               setSelectorOpen(false);
                               setSelectorPanel("root");
                             }}
                           >
-                            <span>{model.label}</span>
-                            <span>{modelChoice === model.value ? "✓" : ""}</span>
+                            <span>Local Gemma</span>
+                            <span>{modelChoice === "local" ? "✓" : ""}</span>
                           </button>
-                        ))}
+                          <div className="model-selector-divider" />
+                          {CODEX_MODELS.map((model) => (
+                            <button
+                              type="button"
+                              key={model.value}
+                              disabled={!codexStatus?.connected}
+                              title={
+                                codexStatus?.connected
+                                  ? undefined
+                                  : "Connect OpenAI Codex to use this model"
+                              }
+                              onClick={() => {
+                                setModelChoice(model.value);
+                                setSelectorOpen(false);
+                                setSelectorPanel("root");
+                              }}
+                            >
+                              <span>{model.label}</span>
+                              <span>{activeChoice === model.value ? "✓" : ""}</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
                       {selectorPanel === "effort" &&
                         (["low", "medium", "high", "xhigh"] as const).map((effort) => (
                           <button

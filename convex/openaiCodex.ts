@@ -19,6 +19,12 @@ type StoredCredential = {
 };
 
 type OAuthLogLevel = "debug" | "info" | "warn" | "error";
+const LOG_LEVEL_WEIGHT: Record<OAuthLogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40,
+};
 
 function safeError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -28,6 +34,12 @@ function safeError(error: unknown) {
 }
 
 function logOAuth(level: OAuthLogLevel, event: string, data: Record<string, unknown> = {}) {
+  const configured = process.env.LOG_LEVEL?.toLowerCase();
+  const minimum: OAuthLogLevel =
+    configured === "debug" || configured === "warn" || configured === "error"
+      ? configured
+      : "info";
+  if (LOG_LEVEL_WEIGHT[level] < LOG_LEVEL_WEIGHT[minimum]) return;
   const line = JSON.stringify({
     timestamp: new Date().toISOString(),
     level,
@@ -101,29 +113,47 @@ export const startDeviceAuth = action({
   args: {},
   handler: async (ctx) => {
     await ownerId(ctx);
-    const response = await fetch(DEVICE_USER_CODE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ client_id: CLIENT_ID }),
-    });
-    const json = await readJson(response, "OpenAI device authorization");
-    const deviceAuthId = json.device_auth_id;
-    const userCode = json.user_code;
-    const rawInterval = typeof json.interval === "string" ? Number(json.interval) : json.interval;
-    if (
-      typeof deviceAuthId !== "string" ||
-      typeof userCode !== "string" ||
-      typeof rawInterval !== "number"
-    ) {
-      throw new Error("OpenAI device authorization returned incomplete data");
+    const operationId = crypto.randomUUID();
+    const startedAt = Date.now();
+    logOAuth("info", "oauth.device.started", { operationId });
+    try {
+      const response = await fetch(DEVICE_USER_CODE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: CLIENT_ID }),
+      });
+      const json = await readJson(response, "OpenAI device authorization");
+      const deviceAuthId = json.device_auth_id;
+      const userCode = json.user_code;
+      const rawInterval = typeof json.interval === "string" ? Number(json.interval) : json.interval;
+      if (
+        typeof deviceAuthId !== "string" ||
+        typeof userCode !== "string" ||
+        typeof rawInterval !== "number"
+      ) {
+        throw new Error("OpenAI device authorization returned incomplete data");
+      }
+      logOAuth("info", "oauth.device.ready", {
+        operationId,
+        durationMs: Date.now() - startedAt,
+        intervalSeconds: Math.max(1, rawInterval),
+        expiresInSeconds: 15 * 60,
+      });
+      return {
+        deviceAuthId,
+        userCode,
+        verificationUri: DEVICE_VERIFICATION_URI,
+        intervalSeconds: Math.max(1, rawInterval),
+        expiresInSeconds: 15 * 60,
+      };
+    } catch (error) {
+      logOAuth("error", "oauth.device.failed", {
+        operationId,
+        durationMs: Date.now() - startedAt,
+        error: safeError(error),
+      });
+      throw error;
     }
-    return {
-      deviceAuthId,
-      userCode,
-      verificationUri: DEVICE_VERIFICATION_URI,
-      intervalSeconds: Math.max(1, rawInterval),
-      expiresInSeconds: 15 * 60,
-    };
   },
 });
 
@@ -131,90 +161,120 @@ export const pollDeviceAuth = action({
   args: { deviceAuthId: v.string(), userCode: v.string() },
   handler: async (ctx, args) => {
     const owner = await ownerId(ctx);
-    const response = await fetch(DEVICE_TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ device_auth_id: args.deviceAuthId, user_code: args.userCode }),
-    });
+    const startedAt = Date.now();
+    try {
+      const response = await fetch(DEVICE_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_auth_id: args.deviceAuthId, user_code: args.userCode }),
+      });
 
-    if (response.status === 403 || response.status === 404) return { status: "pending" as const };
-    const deviceJson = await readJson(response, "OpenAI device authorization check");
-    if (
-      typeof deviceJson.authorization_code !== "string" ||
-      typeof deviceJson.code_verifier !== "string"
-    ) {
-      throw new Error("OpenAI device authorization check returned incomplete data");
+      if (response.status === 403 || response.status === 404) return { status: "pending" as const };
+      const deviceJson = await readJson(response, "OpenAI device authorization check");
+      if (
+        typeof deviceJson.authorization_code !== "string" ||
+        typeof deviceJson.code_verifier !== "string"
+      ) {
+        throw new Error("OpenAI device authorization check returned incomplete data");
+      }
+
+      const tokenResponse = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: CLIENT_ID,
+          code: deviceJson.authorization_code,
+          code_verifier: deviceJson.code_verifier,
+          redirect_uri: DEVICE_REDIRECT_URI,
+        }),
+      });
+      const tokenJson = await readJson(tokenResponse, "OpenAI token exchange");
+      if (
+        typeof tokenJson.access_token !== "string" ||
+        typeof tokenJson.refresh_token !== "string" ||
+        typeof tokenJson.expires_in !== "number"
+      )
+        throw new Error("OpenAI token exchange returned incomplete data");
+
+      await ctx.runMutation(internal.openaiCodex.saveCredential, {
+        ownerId: owner,
+        accessToken: tokenJson.access_token,
+        refreshToken: tokenJson.refresh_token,
+        expiresAt: Date.now() + tokenJson.expires_in * 1000,
+        accountId: decodeAccountId(tokenJson.access_token),
+      });
+      logOAuth("info", "oauth.device.connected", { durationMs: Date.now() - startedAt });
+      return { status: "connected" as const };
+    } catch (error) {
+      logOAuth("error", "oauth.device.poll_failed", {
+        durationMs: Date.now() - startedAt,
+        error: safeError(error),
+      });
+      throw error;
     }
-
-    const tokenResponse = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: CLIENT_ID,
-        code: deviceJson.authorization_code,
-        code_verifier: deviceJson.code_verifier,
-        redirect_uri: DEVICE_REDIRECT_URI,
-      }),
-    });
-    const tokenJson = await readJson(tokenResponse, "OpenAI token exchange");
-    if (
-      typeof tokenJson.access_token !== "string" ||
-      typeof tokenJson.refresh_token !== "string" ||
-      typeof tokenJson.expires_in !== "number"
-    )
-      throw new Error("OpenAI token exchange returned incomplete data");
-
-    await ctx.runMutation(internal.openaiCodex.saveCredential, {
-      ownerId: owner,
-      accessToken: tokenJson.access_token,
-      refreshToken: tokenJson.refresh_token,
-      expiresAt: Date.now() + tokenJson.expires_in * 1000,
-      accountId: decodeAccountId(tokenJson.access_token),
-    });
-    return { status: "connected" as const };
   },
 });
 
 export const resolveAccessToken = action({
-  args: {},
-  handler: async (ctx): Promise<{ accessToken: string; accountId: string } | null> => {
+  args: { requestId: v.optional(v.string()) },
+  handler: async (
+    ctx,
+    { requestId },
+  ): Promise<{ accessToken: string; accountId: string } | null> => {
     const owner = await ownerId(ctx);
     const credential: StoredCredential | null = await ctx.runQuery(
       internal.openaiCodex.getCredential,
       { ownerId: owner },
     );
-    if (!credential) return null;
+    if (!credential) {
+      logOAuth("info", "oauth.credential.missing", { requestId });
+      return null;
+    }
     if (credential.expiresAt > Date.now() + 60_000) {
       return { accessToken: credential.accessToken, accountId: credential.accountId };
     }
+    const startedAt = Date.now();
+    logOAuth("info", "oauth.token.refresh_started", { requestId });
+    try {
+      const response = await fetch(TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          refresh_token: credential.refreshToken,
+          client_id: CLIENT_ID,
+        }),
+      });
+      const tokenJson = await readJson(response, "OpenAI token refresh");
+      if (
+        typeof tokenJson.access_token !== "string" ||
+        typeof tokenJson.refresh_token !== "string" ||
+        typeof tokenJson.expires_in !== "number"
+      )
+        throw new Error("OpenAI token refresh returned incomplete data");
 
-    const response = await fetch(TOKEN_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: credential.refreshToken,
-        client_id: CLIENT_ID,
-      }),
-    });
-    const tokenJson = await readJson(response, "OpenAI token refresh");
-    if (
-      typeof tokenJson.access_token !== "string" ||
-      typeof tokenJson.refresh_token !== "string" ||
-      typeof tokenJson.expires_in !== "number"
-    )
-      throw new Error("OpenAI token refresh returned incomplete data");
-
-    const accountId = decodeAccountId(tokenJson.access_token);
-    await ctx.runMutation(internal.openaiCodex.saveCredential, {
-      ownerId: owner,
-      accessToken: tokenJson.access_token,
-      refreshToken: tokenJson.refresh_token,
-      expiresAt: Date.now() + tokenJson.expires_in * 1000,
-      accountId,
-    });
-    return { accessToken: tokenJson.access_token, accountId };
+      const accountId = decodeAccountId(tokenJson.access_token);
+      await ctx.runMutation(internal.openaiCodex.saveCredential, {
+        ownerId: owner,
+        accessToken: tokenJson.access_token,
+        refreshToken: tokenJson.refresh_token,
+        expiresAt: Date.now() + tokenJson.expires_in * 1000,
+        accountId,
+      });
+      logOAuth("info", "oauth.token.refreshed", {
+        requestId,
+        durationMs: Date.now() - startedAt,
+      });
+      return { accessToken: tokenJson.access_token, accountId };
+    } catch (error) {
+      logOAuth("error", "oauth.token.refresh_failed", {
+        requestId,
+        durationMs: Date.now() - startedAt,
+        error: safeError(error),
+      });
+      throw error;
+    }
   },
 });
 
@@ -227,6 +287,7 @@ export const disconnect = mutation({
       .withIndex("by_owner", (q) => q.eq("ownerId", owner))
       .unique();
     if (credential) await ctx.db.delete(credential._id);
+    logOAuth("info", "oauth.disconnected", { credentialRemoved: Boolean(credential) });
   },
 });
 

@@ -1,8 +1,15 @@
-import { chat, maxIterations, toServerSentEventsResponse, type UIMessage } from "@tanstack/ai";
+import {
+  chat,
+  maxIterations,
+  toServerSentEventsResponse,
+  type ChatMiddleware,
+  type UIMessage,
+} from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createFileRoute } from "@tanstack/react-router";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
+import type { Id } from "../../convex/_generated/dataModel";
 import {
   analyzeDeckTool,
   braveSearchTool,
@@ -13,6 +20,7 @@ import {
 import { SYSTEM_PROMPT } from "../ai/system-prompt";
 import { editActiveDeckDefinition, getActiveDeckDefinition } from "../ai/deck-tools";
 import { logger } from "../lib/logger.server";
+import { getScryfallCard } from "../lib/scryfall.server";
 
 const CODEX_MODELS = new Set([
   "gpt-5.6-sol",
@@ -99,6 +107,8 @@ export const Route = createFileRoute("/api/chat")({
             model?: unknown;
             reasoningEffort?: unknown;
             speed?: unknown;
+            deckId?: unknown;
+            threadId?: unknown;
           };
         };
         try {
@@ -145,6 +155,79 @@ export const Route = createFileRoute("/api/chat")({
           .replace(/\/v1$/, "");
 
         const requested = body.forwardedProps ?? {};
+        if (typeof requested.deckId !== "string" || typeof requested.threadId !== "string") {
+          logger.warn("chat.request.missing_deck_context", { requestId });
+          return jsonError("The active deck context is required.", 400, requestId);
+        }
+        const deckId = requested.deckId as Id<"decks">;
+        const threadId = requested.threadId as Id<"threads">;
+        const readActiveDeck = async () => {
+          const [deck, cards] = await Promise.all([
+            convex.query(api.decks.get, { deckId }),
+            convex.query(api.deckCards.list, { deckId }),
+          ]);
+          if (!deck) throw new Error("Deck not found");
+          return {
+            deck: {
+              name: deck.name,
+              commanderName: deck.commanderName,
+              colorIdentity: deck.colorIdentity,
+            },
+            cards: cards.map(
+              ({ name, quantity, zone, typeLine, oracleText, manaValue, tags }) => ({
+                name,
+                quantity,
+                zone,
+                typeLine,
+                oracleText,
+                manaValue,
+                tags,
+              }),
+            ),
+          };
+        };
+        try {
+          await readActiveDeck();
+        } catch (error) {
+          logger.warn("chat.request.invalid_deck_context", { requestId, error });
+          return jsonError("The active deck could not be loaded.", 404, requestId);
+        }
+
+        const getActiveDeckTool = getActiveDeckDefinition.server(readActiveDeck);
+        const editActiveDeckTool = editActiveDeckDefinition.server(async (edit) => {
+          if (edit.action === "remove") {
+            const storedCards = await convex.query(api.deckCards.list, { deckId });
+            const storedCard = storedCards.find(
+              (item) => item.name.toLocaleLowerCase() === edit.cardName.toLocaleLowerCase(),
+            );
+            if (!storedCard)
+              return { success: false, message: `${edit.cardName} is not in the active deck.` };
+            await convex.mutation(api.deckCards.remove, {
+              cardId: storedCard._id,
+              threadId,
+              actor: "assistant",
+            });
+            return { success: true, message: `Removed ${storedCard.name}.` };
+          }
+          const resolved = await getScryfallCard(edit.cardName);
+          await convex.mutation(api.deckCards.upsert, {
+            deckId,
+            threadId,
+            actor: "assistant",
+            name: resolved.name,
+            quantity: edit.quantity ?? 1,
+            zone: edit.zone ?? "main",
+            typeLine: resolved.typeLine,
+            oracleText: resolved.oracleText,
+            manaValue: resolved.manaValue,
+            colorIdentity: resolved.colorIdentity,
+            tags: edit.tags ?? [],
+          });
+          return {
+            success: true,
+            message: `Saved ${edit.quantity ?? 1} × ${resolved.name} to ${edit.zone ?? "main"}.`,
+          };
+        });
         const useCodex = Boolean(codexCredential) && requested.provider !== "local";
         const codexModel =
           typeof requested.model === "string" && CODEX_MODELS.has(requested.model)

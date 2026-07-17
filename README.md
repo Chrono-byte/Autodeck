@@ -26,11 +26,17 @@ Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The default
 
 You can instead connect a ChatGPT Plus or Pro account from the **OpenAI Codex** card in the sidebar. Autodekt uses OpenAI's device-code flow, stores the per-user OAuth credential in Convex, refreshes it on the server, and sends chat requests through Codex using `gpt-5.6-sol`. Disconnecting removes the stored credential. LM Studio remains the fallback whenever Codex is not connected.
 
+The composer model popout includes **Local Gemma** alongside the available Codex models. Local Gemma remains selectable without an OpenAI connection; Codex models are enabled after OAuth completes.
+
 Add your Brave Search API key to `.env.local` using the exact requested variable name, then restart the app:
 
 ```dotenv
 BRAVE_API_KEY=your-key-here
 ```
+
+## Logging
+
+Chat and OAuth lifecycle events are emitted as structured JSON with a request ID for correlation. Prompts, authorization headers, device codes, and OAuth tokens are never intentionally logged, and known credential fields are redacted as a final safeguard. Set `LOG_LEVEL=debug`, `info`, `warn`, or `error` in `.env.local`; the default is `info`. To apply a different level to Convex OAuth logs too, set the same variable in the Convex deployment with `npx convex env set LOG_LEVEL debug`.
 
 ## What the MVP does
 

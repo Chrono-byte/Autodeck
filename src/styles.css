@@ -830,6 +830,16 @@ button:disabled {
 .chat-composer .model-selector-menu button.active {
   background: #ffffff0b;
 }
+.chat-composer .model-selector-menu button:disabled {
+  cursor: not-allowed;
+  color: #777;
+  background: transparent;
+}
+.model-selector-divider {
+  height: 1px;
+  margin: 4px 7px;
+  background: #ffffff12;
+}
 .model-selector-menu button > span {
   color: inherit;
   font: inherit;
