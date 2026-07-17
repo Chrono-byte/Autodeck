@@ -13,7 +13,11 @@ async function ownerId(ctx: {
   return identity.subject;
 }
 
-async function syncCommanderMetadata(ctx: MutationCtx, deckId: Id<"decks">, updatedAt: number) {
+async function syncDeckCommanderMetadata(
+  ctx: MutationCtx,
+  deckId: Id<"decks">,
+  updatedAt: number,
+) {
   const commanders = await ctx.db
     .query("deckCards")
     .withIndex("by_deck", (q) => q.eq("deckId", deckId))
@@ -29,6 +33,16 @@ async function syncCommanderMetadata(ctx: MutationCtx, deckId: Id<"decks">, upda
     updatedAt,
   });
 }
+
+export const syncCommanderMetadata = mutation({
+  args: { deckId: v.id("decks") },
+  handler: async (ctx, { deckId }) => {
+    const owner = await ownerId(ctx);
+    const deck = await ctx.db.get(deckId);
+    if (!deck || deck.ownerId !== owner) throw new Error("Deck not found");
+    await syncDeckCommanderMetadata(ctx, deckId, Date.now());
+  },
+});
 
 export const list = query({
   args: { deckId: v.id("decks") },
@@ -86,7 +100,7 @@ export const upsert = mutation({
     };
     if (existing) await ctx.db.patch(existing._id, values);
     else await ctx.db.insert("deckCards", { ...values, createdAt: now });
-    if (args.zone === "commander") await syncCommanderMetadata(ctx, args.deckId, now);
+    if (args.zone === "commander") await syncDeckCommanderMetadata(ctx, args.deckId, now);
     else await ctx.db.patch(args.deckId, { updatedAt: now });
     await ctx.db.insert("deckEvents", {
       ownerId: owner,
@@ -113,7 +127,7 @@ export const remove = mutation({
     if (!card || card.ownerId !== owner) throw new Error("Card not found");
     await ctx.db.delete(cardId);
     const now = Date.now();
-    if (card.zone === "commander") await syncCommanderMetadata(ctx, card.deckId, now);
+    if (card.zone === "commander") await syncDeckCommanderMetadata(ctx, card.deckId, now);
     else await ctx.db.patch(card.deckId, { updatedAt: now });
     await ctx.db.insert("deckEvents", {
       ownerId: owner,

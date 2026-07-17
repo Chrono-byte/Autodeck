@@ -74,6 +74,87 @@ export function restoreCodexCompletedOutput(
   } as unknown as ResponseStreamEvent;
 }
 
+function reasoningSummaryKey(event: Record<string, unknown>) {
+  const itemId = typeof event.item_id === "string" ? event.item_id : "item";
+  const outputIndex = typeof event.output_index === "number" ? event.output_index : 0;
+  const summaryIndex = typeof event.summary_index === "number" ? event.summary_index : 0;
+  return `${itemId}:${outputIndex}:${summaryIndex}`;
+}
+
+/** Preserves Markdown boundaries and recovers summary text sent only in done events. */
+export class CodexReasoningSummaryNormalizer {
+  private readonly textByPart = new Map<string, string>();
+  private activePartKey: string | undefined;
+  private hasContent = false;
+
+  normalize(chunk: ResponseStreamEvent): ResponseStreamEvent[] {
+    const event = chunk as unknown as Record<string, unknown>;
+    if (event.type === "response.created") {
+      this.textByPart.clear();
+      this.activePartKey = undefined;
+      this.hasContent = false;
+      return [chunk];
+    }
+
+    if (
+      event.type === "response.reasoning_summary_text.delta" &&
+      typeof event.delta === "string"
+    ) {
+      return [this.appendDelta(event, event.delta)];
+    }
+
+    let completedText: string | undefined;
+    if (
+      event.type === "response.reasoning_summary_text.done" &&
+      typeof event.text === "string"
+    ) {
+      completedText = event.text;
+    } else if (
+      event.type === "response.reasoning_summary_part.done" &&
+      isRecord(event.part) &&
+      typeof event.part.text === "string"
+    ) {
+      completedText = event.part.text;
+    }
+    if (completedText === undefined) return [chunk];
+
+    const key = reasoningSummaryKey(event);
+    const streamed = this.textByPart.get(key) ?? "";
+    const missingText = completedText.startsWith(streamed)
+      ? completedText.slice(streamed.length)
+      : streamed
+        ? ""
+        : completedText;
+    if (!missingText) return [chunk];
+
+    const syntheticDelta = this.appendDelta(
+      {
+        ...event,
+        type: "response.reasoning_summary_text.delta",
+        delta: missingText,
+      },
+      missingText,
+    );
+    return [syntheticDelta, chunk];
+  }
+
+  private appendDelta(event: Record<string, unknown>, rawDelta: string): ResponseStreamEvent {
+    const key = reasoningSummaryKey(event);
+    const startsNewPart = this.hasContent && this.activePartKey !== key;
+    const separator = startsNewPart
+      ? rawDelta.startsWith("\n\n")
+        ? ""
+        : rawDelta.startsWith("\n")
+          ? "\n"
+          : "\n\n"
+      : "";
+    this.textByPart.set(key, (this.textByPart.get(key) ?? "") + rawDelta);
+    this.activePartKey = key;
+    this.hasContent ||= rawDelta.length > 0;
+    return { ...event, delta: `${separator}${rawDelta}` } as unknown as ResponseStreamEvent;
+  }
+}
+
 /**
  * TanStack's cross-provider message history cannot represent opaque Responses
  * reasoning items. Old tool transcripts therefore cannot be replayed safely;
@@ -196,8 +277,17 @@ class CodexResponsesAdapter<TModel extends string> extends OpenAICompatibleRespo
     options: TextOptions<Record<string, unknown>>,
     aguiState: ProcessStreamArgs<TModel>[3],
   ): AsyncIterable<StreamChunk> {
-    const normalizedStream = this.normalizeAndCapture(stream);
+    const normalizedStream = this.normalizeAndCapture(this.normalizeReasoningSummaries(stream));
     yield* super.processStreamChunks(normalizedStream, toolCallMetadata, options, aguiState);
+  }
+
+  private async *normalizeReasoningSummaries(
+    stream: AsyncIterable<ResponseStreamEvent>,
+  ): AsyncIterable<ResponseStreamEvent> {
+    const normalizer = new CodexReasoningSummaryNormalizer();
+    for await (const chunk of stream) {
+      yield* normalizer.normalize(chunk);
+    }
   }
 
   private async *normalizeAndCapture(

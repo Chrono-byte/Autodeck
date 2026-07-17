@@ -92,11 +92,33 @@ export function DeckEditor({
   const upsert = useMutation(api.deckCards.upsert);
   const remove = useMutation(api.deckCards.remove);
   const updateTags = useMutation(api.deckCards.updateTags);
+  const syncCommanderMetadata = useMutation(api.deckCards.syncCommanderMetadata);
 
   const cardNamesKey = useMemo(
     () => cards.map((card) => card.name).sort().join("\n"),
     [cards],
   );
+
+  const commanderMetadata = useMemo(() => {
+    const commanders = cards
+      .filter((card) => card.zone === "commander")
+      .sort((left, right) => left.createdAt - right.createdAt);
+    const colors = new Set(commanders.flatMap((commander) => commander.colorIdentity));
+    return {
+      name: commanders.length ? commanders.map((commander) => commander.name).join(" & ") : undefined,
+      colors: ["W", "U", "B", "R", "G"].filter((color) => colors.has(color)),
+    };
+  }, [cards]);
+
+  useEffect(() => {
+    if (
+      deck.commanderName === commanderMetadata.name &&
+      deck.colorIdentity.join("") === commanderMetadata.colors.join("")
+    ) {
+      return;
+    }
+    void syncCommanderMetadata({ deckId: deck._id });
+  }, [commanderMetadata, deck._id, deck.commanderName, deck.colorIdentity, syncCommanderMetadata]);
 
   useEffect(() => {
     if (!cards.length) {

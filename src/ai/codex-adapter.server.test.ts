@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCodexReplayInput,
+  CodexReasoningSummaryNormalizer,
   normalizeCodexToolEvent,
   restoreCodexCompletedOutput,
   stripHistoricalToolProtocol,
@@ -120,5 +121,69 @@ describe("Codex tool-call event normalization", () => {
     };
 
     expect(restored.response.output).toEqual([functionCall]);
+  });
+});
+
+describe("Codex reasoning summary normalization", () => {
+  it("separates indexed summary parts so their Markdown does not run together", () => {
+    const normalizer = new CodexReasoningSummaryNormalizer();
+    const first = normalizer.normalize({
+      type: "response.reasoning_summary_text.delta",
+      item_id: "rs_1",
+      output_index: 0,
+      summary_index: 0,
+      delta: "**Selecting cards for the fix**",
+    } as never);
+    const second = normalizer.normalize({
+      type: "response.reasoning_summary_text.delta",
+      item_id: "rs_1",
+      output_index: 0,
+      summary_index: 1,
+      delta: "**Planning sequential edits**",
+    } as never);
+
+    expect((first[0] as unknown as { delta: string }).delta).toBe(
+      "**Selecting cards for the fix**",
+    );
+    expect((second[0] as unknown as { delta: string }).delta).toBe(
+      "\n\n**Planning sequential edits**",
+    );
+  });
+
+  it("recovers a reasoning summary emitted only by its done event", () => {
+    const normalizer = new CodexReasoningSummaryNormalizer();
+    const events = normalizer.normalize({
+      type: "response.reasoning_summary_text.done",
+      item_id: "rs_1",
+      output_index: 0,
+      summary_index: 0,
+      text: "Completed reasoning summary",
+    } as never);
+
+    expect(events).toHaveLength(2);
+    expect((events[0] as unknown as { type: string; delta: string })).toMatchObject({
+      type: "response.reasoning_summary_text.delta",
+      delta: "Completed reasoning summary",
+    });
+  });
+
+  it("recovers only the missing tail from a completed summary", () => {
+    const normalizer = new CodexReasoningSummaryNormalizer();
+    normalizer.normalize({
+      type: "response.reasoning_summary_text.delta",
+      item_id: "rs_1",
+      output_index: 0,
+      summary_index: 0,
+      delta: "Planning ",
+    } as never);
+    const events = normalizer.normalize({
+      type: "response.reasoning_summary_text.done",
+      item_id: "rs_1",
+      output_index: 0,
+      summary_index: 0,
+      text: "Planning edits",
+    } as never);
+
+    expect((events[0] as unknown as { delta: string }).delta).toBe("edits");
   });
 });

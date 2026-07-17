@@ -195,7 +195,6 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
           <p className="eyebrow">THREAD</p>
           <h2>{thread.title}</h2>
         </div>
-        <span className="local-model-badge">● {activeModelLabel}</span>
       </header>
       <div
         className="chat-messages"
