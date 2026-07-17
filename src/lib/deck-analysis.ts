@@ -4,11 +4,19 @@ export type ScryfallCard = {
   oracle_text?: string;
   cmc: number;
   color_identity: string[];
+  image_uris?: {
+    normal?: string;
+    art_crop?: string;
+  };
   layout?: string;
   card_faces?: Array<{
     name: string;
     type_line?: string;
     oracle_text?: string;
+    image_uris?: {
+      normal?: string;
+      art_crop?: string;
+    };
   }>;
 };
 

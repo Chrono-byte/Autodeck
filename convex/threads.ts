@@ -24,6 +24,23 @@ export const listByDeck = query({
   },
 });
 
+export const listAll = query({
+  args: {},
+  handler: async (ctx) => {
+    const owner = await ownerId(ctx);
+    const threads = await ctx.db
+      .query("threads")
+      .withIndex("by_owner_updated", (q) => q.eq("ownerId", owner))
+      .order("desc")
+      .filter((q) => q.eq(q.field("archived"), false))
+      .collect();
+    return threads.sort((left, right) => {
+      const pinDifference = Number(right.pinned === true) - Number(left.pinned === true);
+      return pinDifference || right.updatedAt - left.updatedAt;
+    });
+  },
+});
+
 export const create = mutation({
   args: { deckId: v.id("decks"), title: v.optional(v.string()) },
   handler: async (ctx, { deckId, title }) => {
@@ -36,6 +53,7 @@ export const create = mutation({
       deckId,
       title: title?.trim() || "New thread",
       archived: false,
+      pinned: false,
       createdAt: now,
       updatedAt: now,
     });
@@ -63,5 +81,25 @@ export const rename = mutation({
       title: title.trim() || "Untitled thread",
       updatedAt: Date.now(),
     });
+  },
+});
+
+export const setPinned = mutation({
+  args: { threadId: v.id("threads"), pinned: v.boolean() },
+  handler: async (ctx, { threadId, pinned }) => {
+    const owner = await ownerId(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.ownerId !== owner) throw new Error("Thread not found");
+    await ctx.db.patch(threadId, { pinned, updatedAt: Date.now() });
+  },
+});
+
+export const archive = mutation({
+  args: { threadId: v.id("threads") },
+  handler: async (ctx, { threadId }) => {
+    const owner = await ownerId(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.ownerId !== owner) throw new Error("Thread not found");
+    await ctx.db.patch(threadId, { archived: true, pinned: false, updatedAt: Date.now() });
   },
 });

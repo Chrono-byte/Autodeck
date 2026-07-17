@@ -57,8 +57,10 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
   const [speed, setSpeed] = useState<Speed>("standard");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [selectorPanel, setSelectorPanel] = useState<SelectorPanel>("root");
+  const [showJumpToTurn, setShowJumpToTurn] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const messagesContentRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const followStreamRef = useRef(true);
   const preferencesHydratedRef = useRef(false);
@@ -127,8 +129,23 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
   useEffect(() => {
     if (!followStreamRef.current) return;
     const container = messagesRef.current;
-    if (container) container.scrollTop = container.scrollHeight;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+      setShowJumpToTurn(false);
+    }
   }, [chat.messages, chat.isLoading]);
+
+  useEffect(() => {
+    const content = messagesContentRef.current;
+    if (!content) return;
+    const observer = new ResizeObserver(() => {
+      if (!followStreamRef.current) return;
+      const container = messagesRef.current;
+      if (container) container.scrollTop = container.scrollHeight;
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -139,15 +156,28 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
 
   const submit = () => {
     const content = input.trim();
-    if (!content || chat.isLoading) return;
+    if (!content) return;
     followStreamRef.current = true;
-    void chat.sendMessage(content);
+    setShowJumpToTurn(false);
+    chat.sendMessage(content);
     setInput("");
   };
 
   const usePrompt = (prompt: string) => {
     setInput(prompt);
     textareaRef.current?.focus();
+  };
+
+  const pauseFollowing = () => {
+    followStreamRef.current = false;
+    setShowJumpToTurn(chat.messages.length > 0);
+  };
+
+  const jumpToCurrentTurn = () => {
+    followStreamRef.current = true;
+    setShowJumpToTurn(false);
+    const container = messagesRef.current;
+    if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   };
 
   const activeChoice = codexStatus?.connected ? modelChoice : "local";
@@ -170,12 +200,31 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
       <div
         className="chat-messages"
         ref={messagesRef}
+        tabIndex={0}
+        aria-label="Conversation transcript"
+        onWheel={(event) => {
+          if (event.deltaY < 0) pauseFollowing();
+        }}
+        onTouchMove={pauseFollowing}
+        onPointerDown={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (event.clientX >= bounds.right - 18) pauseFollowing();
+        }}
+        onKeyDown={(event) => {
+          if (["ArrowUp", "PageUp", "Home"].includes(event.key)) pauseFollowing();
+        }}
         onScroll={(event) => {
           const element = event.currentTarget;
-          followStreamRef.current =
-            element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+          const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 48;
+          if (atBottom) {
+            followStreamRef.current = true;
+            setShowJumpToTurn(false);
+          } else if (!followStreamRef.current) {
+            setShowJumpToTurn(chat.messages.length > 0);
+          }
         }}
       >
+        <div className="chat-message-list" ref={messagesContentRef}>
         {chat.messages.length === 0 && (
           <div className="chat-empty">
             <p className="eyebrow">DECK STUDY</p>
@@ -220,12 +269,56 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
           </div>
         )}
         <div className="chat-scroll-anchor" aria-hidden="true" />
+        </div>
       </div>
       {chat.error && (
         <div className="chat-error" role="alert">
           <span><strong>Response interrupted.</strong> {chat.error.message}</span>
           <button type="button" onClick={() => void chat.reload()}>Try again</button>
         </div>
+      )}
+      <div className="chat-composer-zone">
+      {chat.queuedMessages.length > 0 && (
+        <div className="message-queue" aria-label="Queued messages">
+          <div className="message-queue-header">
+            <span>
+              {chat.queuedMessages.length} queued
+              {chat.error ? " · paused until retry" : " · sends automatically"}
+            </span>
+            <button type="button" onClick={chat.clearQueuedMessages}>Clear</button>
+          </div>
+          <ol>
+            {chat.queuedMessages.map((message) => (
+              <li key={message.id}>
+                <span>{message.content}</span>
+                <div className="message-queue-actions">
+                  <button
+                    type="button"
+                    className="message-queue-steer"
+                    onClick={() => chat.steerQueuedMessage(message.id)}
+                    aria-label={`Steer with queued message: ${message.content}`}
+                    title="Stop the current response and send this next"
+                  >
+                    Steer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => chat.removeQueuedMessage(message.id)}
+                    aria-label={`Remove queued message: ${message.content}`}
+                    title="Remove from queue"
+                  >
+                    ×
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+      {showJumpToTurn && (
+        <button type="button" className="jump-to-turn" onClick={jumpToCurrentTurn}>
+          <span aria-hidden="true">↓</span> Jump to current turn
+        </button>
       )}
       <form
         className="chat-composer"
@@ -371,18 +464,27 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
               )}
             </div>
             <button
-              type={chat.isLoading ? "button" : "submit"}
-              className={chat.isLoading ? "stream-stop" : undefined}
-              disabled={!chat.isLoading && !input.trim()}
-              aria-label={chat.isLoading ? "Stop response" : "Send message"}
-              title={chat.isLoading ? "Stop response" : "Send message"}
-              onClick={chat.isLoading ? () => chat.stop() : undefined}
+              type="button"
+              className="stream-stop"
+              hidden={!chat.isLoading}
+              aria-label="Stop response"
+              title="Stop response"
+              onClick={() => chat.stop()}
             >
-              {chat.isLoading ? <span className="stop-icon" aria-hidden="true" /> : "↑"}
+              <span className="stop-icon" aria-hidden="true" />
+            </button>
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              aria-label={chat.isLoading ? "Queue message" : "Send message"}
+              title={chat.isLoading ? "Queue message" : "Send message"}
+            >
+              ↑
             </button>
           </div>
         </div>
       </form>
+      </div>
     </section>
   );
 }

@@ -29,6 +29,51 @@ function callIdOf(item: unknown) {
   return isRecord(item) && typeof item.call_id === "string" ? item.call_id : undefined;
 }
 
+function outputItemKey(item: unknown) {
+  if (!isRecord(item)) return undefined;
+  if (typeof item.id === "string") return item.id;
+  return callIdOf(item);
+}
+
+function mergeStreamedOutputItems(
+  completedOutput: ResponseOutput,
+  streamedOutput: ReadonlyArray<ResponseItem>,
+): ResponseOutput {
+  const merged = [...completedOutput];
+  const completedKeys = new Set(merged.map(outputItemKey).filter((key): key is string => Boolean(key)));
+
+  for (const item of streamedOutput) {
+    const key = outputItemKey(item);
+    if (!key || !completedKeys.has(key)) merged.push(item);
+  }
+
+  return merged;
+}
+
+/**
+ * The ChatGPT Codex endpoint can omit streamed function calls from the final
+ * response.output array. TanStack derives finishReason from that final array,
+ * so restore any output items observed earlier in the stream.
+ */
+export function restoreCodexCompletedOutput(
+  chunk: ResponseStreamEvent,
+  streamedOutput: ReadonlyArray<ResponseItem>,
+): ResponseStreamEvent {
+  const event = chunk as unknown as Record<string, unknown>;
+  if (event.type !== "response.completed" || !isRecord(event.response)) return chunk;
+
+  const completedOutput = Array.isArray(event.response.output)
+    ? (event.response.output as ResponseOutput)
+    : [];
+  return {
+    ...event,
+    response: {
+      ...event.response,
+      output: mergeStreamedOutputItems(completedOutput, streamedOutput),
+    },
+  } as unknown as ResponseStreamEvent;
+}
+
 /**
  * TanStack's cross-provider message history cannot represent opaque Responses
  * reasoning items. Old tool transcripts therefore cannot be replayed safely;
@@ -158,11 +203,42 @@ class CodexResponsesAdapter<TModel extends string> extends OpenAICompatibleRespo
   private async *normalizeAndCapture(
     stream: AsyncIterable<ResponseStreamEvent>,
   ): AsyncIterable<ResponseStreamEvent> {
+    const streamedOutput = new Map<string, { index: number; item: ResponseItem }>();
+
     for await (const chunk of stream) {
-      if (chunk.type === "response.completed") {
-        this.responseBatches.push(chunk.response.output as unknown as ResponseOutput);
+      const event = chunk as unknown as Record<string, unknown>;
+      if (
+        (event.type === "response.output_item.added" || event.type === "response.output_item.done") &&
+        isRecord(event.item)
+      ) {
+        const key = outputItemKey(event.item);
+        const index = typeof event.output_index === "number" ? event.output_index : streamedOutput.size;
+        if (key) streamedOutput.set(key, { index, item: event.item });
+      } else if (
+        event.type === "response.function_call_arguments.done" &&
+        typeof event.item_id === "string" &&
+        typeof event.arguments === "string"
+      ) {
+        const existing = streamedOutput.get(event.item_id);
+        if (existing) {
+          streamedOutput.set(event.item_id, {
+            ...existing,
+            item: { ...existing.item, arguments: event.arguments },
+          });
+        }
       }
-      yield normalizeCodexToolEvent(chunk, this.itemIdToCallId);
+
+      const restored = restoreCodexCompletedOutput(
+        chunk,
+        [...streamedOutput.values()]
+          .sort((left, right) => left.index - right.index)
+          .map(({ item }) => item),
+      );
+      if (restored.type === "response.completed") {
+        this.responseBatches.push(restored.response.output as unknown as ResponseOutput);
+        streamedOutput.clear();
+      }
+      yield normalizeCodexToolEvent(restored, this.itemIdToCallId);
     }
   }
 }

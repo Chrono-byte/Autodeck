@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCodexReplayInput,
   normalizeCodexToolEvent,
+  restoreCodexCompletedOutput,
   stripHistoricalToolProtocol,
 } from "./codex-adapter.server";
 
@@ -79,5 +80,45 @@ describe("Codex tool-call event normalization", () => {
     expect(normalizedAdded.item.id).toBe("call_1");
     expect(normalizedDelta.item_id).toBe("call_1");
     expect((added as unknown as { item: { id: string } }).item.id).toBe("fc_1");
+  });
+
+  it("restores streamed function calls omitted from response.completed", () => {
+    const functionCall = {
+      type: "function_call",
+      id: "fc_1",
+      call_id: "call_1",
+      name: "search_web",
+      arguments: '{"query":"five-color gate manabases"}',
+    };
+    const completed = {
+      type: "response.completed",
+      response: { id: "resp_1", output: [] },
+    } as never;
+
+    const restored = restoreCodexCompletedOutput(completed, [functionCall]) as unknown as {
+      response: { output: Array<Record<string, unknown>> };
+    };
+
+    expect(restored.response.output).toEqual([functionCall]);
+  });
+
+  it("does not duplicate output items already present in response.completed", () => {
+    const functionCall = {
+      type: "function_call",
+      id: "fc_1",
+      call_id: "call_1",
+      name: "search_web",
+      arguments: "{}",
+    };
+    const completed = {
+      type: "response.completed",
+      response: { id: "resp_1", output: [functionCall] },
+    } as never;
+
+    const restored = restoreCodexCompletedOutput(completed, [functionCall]) as unknown as {
+      response: { output: Array<Record<string, unknown>> };
+    };
+
+    expect(restored.response.output).toEqual([functionCall]);
   });
 });

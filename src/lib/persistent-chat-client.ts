@@ -9,6 +9,12 @@ import { authClient } from "./auth-client";
 
 type ChatMessages = Array<UIMessage<readonly []>>;
 
+export interface QueuedChatMessage {
+  id: string;
+  content: string;
+  queuedAt: number;
+}
+
 export interface PersistentChatRequestOptions {
   provider: "local" | "openai-codex";
   model?: string;
@@ -20,6 +26,7 @@ export interface PersistentChatRequestOptions {
 
 interface ChatSnapshot {
   messages: ChatMessages;
+  queuedMessages: QueuedChatMessage[];
   isLoading: boolean;
   error: Error | undefined;
   status: ChatClientState;
@@ -30,6 +37,8 @@ class PersistentChatSession {
   private readonly client: ChatClient<readonly []>;
   private requestOptions: PersistentChatRequestOptions;
   private snapshot: ChatSnapshot;
+  private activeSend = false;
+  private drainTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     private readonly id: string,
@@ -39,6 +48,7 @@ class PersistentChatSession {
     this.requestOptions = requestOptions;
     this.snapshot = {
       messages: initialMessages,
+      queuedMessages: [],
       isLoading: false,
       error: undefined,
       status: "ready",
@@ -65,6 +75,7 @@ class PersistentChatSession {
       },
       onLoadingChange: (isLoading) => {
         this.updateSnapshot({ isLoading });
+        if (!isLoading) this.scheduleDrain();
       },
       onErrorChange: (error) => {
         this.updateSnapshot({ error });
@@ -97,18 +108,99 @@ class PersistentChatSession {
   }
 
   sendMessage(content: string) {
-    return this.client.sendMessage(content);
+    const normalized = content.trim();
+    if (!normalized) return;
+    if (
+      this.activeSend ||
+      this.snapshot.isLoading ||
+      this.snapshot.error ||
+      this.snapshot.queuedMessages.length > 0
+    ) {
+      this.updateSnapshot({
+        queuedMessages: [
+          ...this.snapshot.queuedMessages,
+          { id: crypto.randomUUID(), content: normalized, queuedAt: Date.now() },
+        ],
+      });
+      return;
+    }
+    void this.dispatchMessage(normalized);
   }
 
   reload() {
-    return this.client.reload();
+    if (this.activeSend || this.snapshot.isLoading) return;
+    void this.runClientAction(() => this.client.reload());
   }
 
   stop() {
     this.client.stop();
   }
 
+  removeQueuedMessage(id: string) {
+    this.updateSnapshot({
+      queuedMessages: this.snapshot.queuedMessages.filter((message) => message.id !== id),
+    });
+  }
+
+  steerQueuedMessage(id: string) {
+    const selected = this.snapshot.queuedMessages.find((message) => message.id === id);
+    if (!selected) return;
+    this.updateSnapshot({
+      queuedMessages: [
+        selected,
+        ...this.snapshot.queuedMessages.filter((message) => message.id !== id),
+      ],
+    });
+    if (this.activeSend || this.snapshot.isLoading) this.client.stop();
+    this.scheduleDrain();
+  }
+
+  clearQueuedMessages() {
+    if (this.snapshot.queuedMessages.length === 0) return;
+    this.updateSnapshot({ queuedMessages: [] });
+  }
+
+  private async dispatchMessage(content: string) {
+    await this.runClientAction(() => this.client.sendMessage(content));
+  }
+
+  private async runClientAction(action: () => void | Promise<void>) {
+    this.activeSend = true;
+    try {
+      await action();
+    } catch {
+      // ChatClient reports request failures through onErrorChange.
+    } finally {
+      this.activeSend = false;
+      this.scheduleDrain();
+    }
+  }
+
+  private scheduleDrain() {
+    if (this.drainTimer !== undefined) clearTimeout(this.drainTimer);
+    this.drainTimer = setTimeout(() => {
+      this.drainTimer = undefined;
+      this.drainNextMessage();
+    }, 0);
+  }
+
+  private drainNextMessage() {
+    if (
+      this.activeSend ||
+      this.snapshot.isLoading ||
+      this.snapshot.error ||
+      this.snapshot.queuedMessages.length === 0
+    ) {
+      return;
+    }
+    const [next, ...remaining] = this.snapshot.queuedMessages;
+    if (!next) return;
+    this.updateSnapshot({ queuedMessages: remaining });
+    void this.dispatchMessage(next.content);
+  }
+
   dispose() {
+    if (this.drainTimer !== undefined) clearTimeout(this.drainTimer);
     this.client.stop();
     this.client.dispose();
     this.listeners.clear();
@@ -162,6 +254,9 @@ export function usePersistentChat({
     sendMessage: (content: string) => session.sendMessage(content),
     reload: () => session.reload(),
     stop: () => session.stop(),
+    steerQueuedMessage: (id: string) => session.steerQueuedMessage(id),
+    removeQueuedMessage: (id: string) => session.removeQueuedMessage(id),
+    clearQueuedMessages: () => session.clearQueuedMessages(),
   };
 }
 

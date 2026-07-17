@@ -1,7 +1,9 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx } from "./_generated/server";
 
 const zone = v.union(v.literal("commander"), v.literal("main"), v.literal("maybeboard"));
+const colorOrder = ["W", "U", "B", "R", "G"] as const;
 
 async function ownerId(ctx: {
   auth: { getUserIdentity: () => Promise<{ subject: string } | null> };
@@ -9,6 +11,23 @@ async function ownerId(ctx: {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) throw new Error("Not authenticated");
   return identity.subject;
+}
+
+async function syncCommanderMetadata(ctx: MutationCtx, deckId: Id<"decks">, updatedAt: number) {
+  const commanders = await ctx.db
+    .query("deckCards")
+    .withIndex("by_deck", (q) => q.eq("deckId", deckId))
+    .filter((q) => q.eq(q.field("zone"), "commander"))
+    .collect();
+  commanders.sort((left, right) => left.createdAt - right.createdAt);
+  const colors = new Set(commanders.flatMap((commander) => commander.colorIdentity));
+  await ctx.db.patch(deckId, {
+    commanderName: commanders.length
+      ? commanders.map((commander) => commander.name).join(" & ")
+      : undefined,
+    colorIdentity: colorOrder.filter((color) => colors.has(color)),
+    updatedAt,
+  });
 }
 
 export const list = query({
@@ -67,7 +86,8 @@ export const upsert = mutation({
     };
     if (existing) await ctx.db.patch(existing._id, values);
     else await ctx.db.insert("deckCards", { ...values, createdAt: now });
-    await ctx.db.patch(args.deckId, { updatedAt: now });
+    if (args.zone === "commander") await syncCommanderMetadata(ctx, args.deckId, now);
+    else await ctx.db.patch(args.deckId, { updatedAt: now });
     await ctx.db.insert("deckEvents", {
       ownerId: owner,
       deckId: args.deckId,
@@ -92,7 +112,9 @@ export const remove = mutation({
     const card = await ctx.db.get(cardId);
     if (!card || card.ownerId !== owner) throw new Error("Card not found");
     await ctx.db.delete(cardId);
-    await ctx.db.patch(card.deckId, { updatedAt: Date.now() });
+    const now = Date.now();
+    if (card.zone === "commander") await syncCommanderMetadata(ctx, card.deckId, now);
+    else await ctx.db.patch(card.deckId, { updatedAt: now });
     await ctx.db.insert("deckEvents", {
       ownerId: owner,
       deckId: card.deckId,
@@ -100,7 +122,7 @@ export const remove = mutation({
       actor,
       action: "removed card",
       cardName: card.name,
-      createdAt: Date.now(),
+      createdAt: now,
     });
   },
 });

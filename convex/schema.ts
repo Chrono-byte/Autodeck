@@ -18,6 +18,7 @@ export default defineSchema({
     deckId: v.id("decks"),
     title: v.string(),
     archived: v.boolean(),
+    pinned: v.optional(v.boolean()),
     messageState: v.optional(v.any()),
     createdAt: v.number(),
     updatedAt: v.number(),
