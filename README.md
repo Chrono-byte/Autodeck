@@ -6,22 +6,44 @@ An agentic Magic: The Gathering Commander deck research and tuning workspace bui
 
 ```bash
 pnpm install
-copy .env.example .env.local
+npx convex dev --once
+```
+
+The Convex command creates `.env.local`, starts a local deployment, and prompts for any initial setup it needs. In two terminals, keep the backend and app running:
+
+```bash
+pnpm dev:backend
 pnpm dev
 ```
 
-Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The defaults point to `http://127.0.0.1:1234`; no API credential is needed. Override them with `LM_STUDIO_URL` and `LM_STUDIO_MODEL` if necessary.
+The Better Auth server expects `SITE_URL=http://localhost:3000` in the Convex deployment. Set it once if Convex did not already do so:
+
+```bash
+npx convex env set SITE_URL http://localhost:3000
+```
+
+Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The defaults point to `http://127.0.0.1:1234`; no API credential is needed. Override them with `LM_STUDIO_URL` and `LM_STUDIO_MODEL` in `.env.local` if necessary. Sign up with any local email and password; accounts are stored in the local Convex deployment.
+
+Add your Brave Search API key to `.env.local` using the exact requested variable name, then restart the app:
+
+```dotenv
+BRAVE_API_KEY=your-key-here
+```
 
 ## What the MVP does
 
-- Streams an agent conversation through TanStack AI.
+- Provides a ChatGPT-style workspace with authenticated deck-scoped conversation threads.
+- Persists users, decks, threads, message history, normalized cards, and deck edit history in Convex.
+- Lets the user and assistant edit the same Moxfield-inspired list with commander, main-deck, and maybeboard zones.
+- Groups by custom tag, card type, color identity, mana value, or board; sorts by name, mana value, or type.
+- Imports common text and Arena-style decklists through Scryfall's batched collection endpoint.
+- Streams agent conversations through TanStack AI.
 - Synthesizes deck-tech and strategy guidance with a local LM Studio model.
+- Searches current deck-tech guides and strategy sources through Brave Search and returns source links.
 - Searches current Oracle card data through Scryfall.
 - Requires a current Scryfall Oracle-text lookup before the model gives feedback about a named card.
 - Searches a local index of Wizards' official Comprehensive Rules by rule number, glossary term, or natural-language phrase.
 - Requires a Comprehensive Rules lookup before the model answers rules and card-interaction questions.
-- Parses common text and Arena-style decklists.
-- Batches deck lookups through Scryfall's collection endpoint.
 - Estimates lands, ramp, draw, targeted interaction, wipes, protection, tutors, and average mana value.
 
 Functional roles are deliberately overlapping and heuristic. They are evidence for the agent, not a substitute for reading cards in the context of a deck's plan.
@@ -30,4 +52,4 @@ Functional roles are deliberately overlapping and heuristic. They are evidence f
 
 The repository includes Wizards of the Coast's English Comprehensive Rules PDF and matching TXT edition, effective June 19, 2026, under `src/data/mtg-rules/`. The PDF is the retained source document; the matching text edition powers deterministic lookup. The live source of truth remains [Wizards' rules page](https://magic.wizards.com/en/rules), which should be checked when refreshing these files.
 
-The local model has no native live-web search. Current card data still comes from Scryfall; reviewing current deck-tech articles requires adding a separate search/fetch provider or supplying source URLs.
+Live guide discovery uses Brave Search, while current card text and Commander legality continue to come from Scryfall.

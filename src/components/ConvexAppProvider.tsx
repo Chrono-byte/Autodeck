@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ConvexBetterAuthProvider } from '@convex-dev/better-auth/react'
+import type { AuthClient } from '@convex-dev/better-auth/react'
 import { ConvexReactClient } from 'convex/react'
 import { authClient } from '../lib/auth-client'
 
@@ -20,8 +21,10 @@ export function ConvexAppProvider({ children }: { children: ReactNode }) {
     )
   }
 
+  // Better Auth's generated session type is structurally compatible at runtime,
+  // but its plugin generics are invariant across the two package entry points.
   return (
-    <ConvexBetterAuthProvider client={convex} authClient={authClient}>
+    <ConvexBetterAuthProvider client={convex} authClient={authClient as unknown as AuthClient}>
       {children}
     </ConvexBetterAuthProvider>
   )

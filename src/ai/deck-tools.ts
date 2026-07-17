@@ -37,3 +37,31 @@ export const editActiveDeckDefinition = toolDefinition({
   }),
   outputSchema: z.object({ success: z.boolean(), message: z.string() }),
 })
+
+export type DeckToolContext = {
+  readDeck: () => {
+    deck: { name: string; commanderName?: string; colorIdentity: string[] }
+    cards: Array<{
+      name: string; quantity: number; zone: 'commander' | 'main' | 'maybeboard'
+      typeLine: string; oracleText?: string; manaValue: number; tags: string[]
+    }>
+  }
+  editDeck: (input: {
+    action: 'upsert' | 'remove'; cardName: string; quantity: number
+    zone: 'commander' | 'main' | 'maybeboard'; tags: string[]
+  }) => Promise<{ success: boolean; message: string }>
+}
+
+export const getActiveDeckClientTool = getActiveDeckDefinition.client<DeckToolContext>(
+  (_input, ctx) => ctx.context.readDeck(),
+)
+
+export const editActiveDeckClientTool = editActiveDeckDefinition.client<DeckToolContext>(
+  (input, ctx) => ctx.context.editDeck({
+    action: input.action,
+    cardName: input.cardName,
+    quantity: input.quantity ?? 1,
+    zone: input.zone ?? 'main',
+    tags: input.tags ?? [],
+  }),
+)

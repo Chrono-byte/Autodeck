@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:backend": "convex dev",
     "build": "vite build && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

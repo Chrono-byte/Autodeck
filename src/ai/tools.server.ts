@@ -1,6 +1,7 @@
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { parseDecklist, summarizeDeck } from '../lib/deck-analysis'
+import { searchBraveWeb } from '../lib/brave-search.server'
 import { lookupComprehensiveRules } from '../lib/mtg-rules.server'
 import { fetchDeckCards, getScryfallCard, searchScryfall } from '../lib/scryfall.server'
 
@@ -119,4 +120,31 @@ const comprehensiveRulesDefinition = toolDefinition({
 
 export const comprehensiveRulesTool = comprehensiveRulesDefinition.server(
   async ({ query, limit }) => lookupComprehensiveRules(query, limit),
+)
+
+const braveSearchDefinition = toolDefinition({
+  name: 'search_web',
+  description:
+    'Search the current web with Brave Search for Commander deck-tech guides, strategy articles, metagame context, budget ideas, and other time-sensitive sources. Return source URLs and snippets. Use focused queries, compare multiple sources, and cite the URLs used in the answer.',
+  inputSchema: z.object({
+    query: z.string().min(1).max(400).describe('A focused web query of no more than 50 words.'),
+    count: z.number().int().min(1).max(20).default(6),
+    freshness: z.enum(['pd', 'pw', 'pm', 'py']).optional()
+      .describe('Optional freshness: past day, week, month, or year.'),
+  }),
+  outputSchema: z.object({
+    query: z.string(),
+    moreResultsAvailable: z.boolean(),
+    results: z.array(z.object({
+      title: z.string(),
+      url: z.string().url(),
+      description: z.string(),
+      age: z.string().optional(),
+      extraSnippets: z.array(z.string()),
+    })),
+  }),
+})
+
+export const braveSearchTool = braveSearchDefinition.server(
+  async ({ query, count, freshness }) => searchBraveWeb({ query, count, freshness }),
 )
