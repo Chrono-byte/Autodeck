@@ -36,7 +36,7 @@ export function parseDecklist(text: string): DeckEntry[] {
       .replace(/\s+\([A-Z0-9]+\)\s+\d+[a-z]?\s*$/i, "")
       .trim();
 
-    if (!line || /^\/\//.test(line) || /^deck$/i.test(line) || /^commander$/i.test(line)) {
+    if (!line || line.startsWith("//") || /^deck$/i.test(line) || /^commander$/i.test(line)) {
       continue;
     }
 

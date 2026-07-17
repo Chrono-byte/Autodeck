@@ -18,6 +18,29 @@ type StoredCredential = {
   accountId: string;
 };
 
+type OAuthLogLevel = "debug" | "info" | "warn" | "error";
+
+function safeError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+/gi, "Bearer [REDACTED]")
+    .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]");
+}
+
+function logOAuth(level: OAuthLogLevel, event: string, data: Record<string, unknown> = {}) {
+  const line = JSON.stringify({
+    timestamp: new Date().toISOString(),
+    level,
+    service: "autodekt-convex",
+    event,
+    ...data,
+  });
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else if (level === "debug") console.debug(line);
+  else console.info(line);
+}
+
 async function ownerId(ctx: {
   auth: { getUserIdentity: () => Promise<{ subject: string } | null> };
 }) {
@@ -30,7 +53,8 @@ function decodeAccountId(accessToken: string) {
   try {
     const payload = accessToken.split(".")[1];
     if (!payload) throw new Error("Invalid token");
-    const base64 = payload.replaceAll("-", "+").replaceAll("_", "/");
+    const normalized = payload.replaceAll("-", "+").replaceAll("_", "/");
+    const base64 = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
     const decoded = JSON.parse(atob(base64)) as Record<string, unknown>;
     const auth = decoded[JWT_CLAIM_PATH] as { chatgpt_account_id?: unknown } | undefined;
     if (typeof auth?.chatgpt_account_id !== "string") throw new Error("Missing account ID");
@@ -42,8 +66,16 @@ function decodeAccountId(accessToken: string) {
 
 async function readJson(response: Response, label: string) {
   const text = await response.text();
-  if (!response.ok)
-    throw new Error(`${label} failed (${response.status}): ${text || response.statusText}`);
+  if (!response.ok) {
+    let code = "";
+    try {
+      const parsed = JSON.parse(text) as { error?: string | { code?: string } };
+      code = typeof parsed.error === "string" ? parsed.error : (parsed.error?.code ?? "");
+    } catch {
+      // Upstream returned a non-JSON error.
+    }
+    throw new Error(`${label} failed (${response.status})${code ? `: ${code}` : ""}`);
+  }
   try {
     return JSON.parse(text) as Record<string, unknown>;
   } catch {
