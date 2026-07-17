@@ -23,7 +23,7 @@ type OAuthLogLevel = "debug" | "info" | "warn" | "error";
 function safeError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
   return message
-    .replace(/Bearer\s+[A-Za-z0-9._~+\/-]+/gi, "Bearer [REDACTED]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/-]+/gi, "Bearer [REDACTED]")
     .replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, "[REDACTED_JWT]");
 }
 

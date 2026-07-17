@@ -215,7 +215,12 @@ export const Route = createFileRoute("/api/chat")({
             ],
             agentLoopStrategy: maxIterations(12),
           });
-          return observeStream(toServerSentEventsResponse(stream), streamDetails, startedAt, requestId);
+          return observeStream(
+            toServerSentEventsResponse(stream),
+            streamDetails,
+            startedAt,
+            requestId,
+          );
         } catch (error) {
           logger.error("chat.stream.create_failed", {
             requestId,
