@@ -9,11 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiCardsResolveRouteImport } from './routes/api.cards.resolve'
 import { Route as ApiCardsCollectionRouteImport } from './routes/api.cards.collection'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -37,12 +43,14 @@ const ApiCardsCollectionRoute = ApiCardsCollectionRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
@@ -50,18 +58,30 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/chat' | '/api/cards/collection' | '/api/cards/resolve'
+  fullPaths:
+    | '/'
+    | '/settings'
+    | '/api/chat'
+    | '/api/cards/collection'
+    | '/api/cards/resolve'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/chat' | '/api/cards/collection' | '/api/cards/resolve'
+  to:
+    | '/'
+    | '/settings'
+    | '/api/chat'
+    | '/api/cards/collection'
+    | '/api/cards/resolve'
   id:
     | '__root__'
     | '/'
+    | '/settings'
     | '/api/chat'
     | '/api/cards/collection'
     | '/api/cards/resolve'
@@ -69,6 +89,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SettingsRoute: typeof SettingsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiCardsCollectionRoute: typeof ApiCardsCollectionRoute
   ApiCardsResolveRoute: typeof ApiCardsResolveRoute
@@ -76,6 +97,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -109,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SettingsRoute: SettingsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiCardsCollectionRoute: ApiCardsCollectionRoute,
   ApiCardsResolveRoute: ApiCardsResolveRoute,

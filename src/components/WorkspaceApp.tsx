@@ -3,13 +3,12 @@ import {
   AuthLoading,
   Authenticated,
   Unauthenticated,
-  useAction,
   useMutation,
   useQuery,
 } from "convex/react";
+import { Link } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { authClient } from "../lib/auth-client";
 import { AuthScreen } from "./AuthScreen";
 import { DeckChat } from "./DeckChat";
 import { DeckEditor } from "./DeckEditor";
@@ -134,14 +133,15 @@ function AuthenticatedWorkspace() {
           ))}
           {decks?.length === 0 && <p className="sidebar-empty">Create a deck to begin.</p>}
         </nav>
-        <CodexConnection />
         <footer className="sidebar-user">
-          <div>{user?.name?.slice(0, 1).toUpperCase() ?? "U"}</div>
-          <span>
-            <strong>{user?.name ?? "Brewer"}</strong>
-            <small>{user?.email}</small>
-          </span>
-          <button onClick={() => void authClient.signOut()}>↪</button>
+          <Link to="/settings" className="sidebar-account-link" title="Account settings">
+            <div>{user?.name?.slice(0, 1).toUpperCase() ?? "U"}</div>
+            <span>
+              <strong>{user?.name ?? "Brewer"}</strong>
+              <small>{user?.email}</small>
+            </span>
+            <b aria-hidden="true">⚙</b>
+          </Link>
         </footer>
       </aside>
       {!sidebarOpen && (
@@ -167,87 +167,5 @@ function AuthenticatedWorkspace() {
         </section>
       )}
     </main>
-  );
-}
-
-function CodexConnection() {
-  const status = useQuery(api.openaiCodex.status);
-  const startDeviceAuth = useAction(api.openaiCodex.startDeviceAuth);
-  const pollDeviceAuth = useAction(api.openaiCodex.pollDeviceAuth);
-  const disconnect = useMutation(api.openaiCodex.disconnect);
-  const [deviceCode, setDeviceCode] = useState<string | null>(null);
-  const [verificationUri, setVerificationUri] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const connect = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const device = await startDeviceAuth();
-      setDeviceCode(device.userCode);
-      setVerificationUri(device.verificationUri);
-      window.open(device.verificationUri, "_blank", "noopener,noreferrer");
-      const deadline = Date.now() + device.expiresInSeconds * 1000;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, device.intervalSeconds * 1000));
-        const result = await pollDeviceAuth({
-          deviceAuthId: device.deviceAuthId,
-          userCode: device.userCode,
-        });
-        if (result.status === "connected") {
-          setDeviceCode(null);
-          setVerificationUri(null);
-          return;
-        }
-      }
-      throw new Error("The OpenAI device code expired. Start the connection again.");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Unable to connect OpenAI Codex.");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (status?.connected) {
-    return (
-      <section className="codex-connection connected">
-        <div>
-          <span className="connection-dot" />
-          <span>
-            <strong>OpenAI Codex</strong>
-            <small>GPT-5.6 Sol connected</small>
-          </span>
-        </div>
-        <button onClick={() => void disconnect()}>Disconnect</button>
-      </section>
-    );
-  }
-
-  return (
-    <section className="codex-connection">
-      <div>
-        <span className="connection-dot" />
-        <span>
-          <strong>OpenAI Codex</strong>
-          <small>Use ChatGPT Plus or Pro</small>
-        </span>
-      </div>
-      {deviceCode && (
-        <div className="device-code">
-          <small>Enter this code at OpenAI</small>
-          <strong>{deviceCode}</strong>
-          {verificationUri && (
-            <a href={verificationUri} target="_blank" rel="noreferrer">
-              Open OpenAI ↗
-            </a>
-          )}
-        </div>
-      )}
-      {error && <small className="connection-error">{error}</small>}
-      <button disabled={busy} onClick={() => void connect()}>
-        {busy ? "Waiting for OpenAI…" : "Connect"}
-      </button>
-    </section>
   );
 }

@@ -281,26 +281,21 @@ export const Route = createFileRoute("/api/chat")({
           },
         };
 
-        const adapter =
-          useCodex && codexCredential
-            ? openaiCompatibleText(codexModel, {
-                name: "openai-codex",
-                baseURL: "https://chatgpt.com/backend-api/codex",
-                apiKey: codexCredential.accessToken,
-                api: "responses",
-                defaultHeaders: {
-                  "chatgpt-account-id": codexCredential.accountId,
-                  originator: "autodekt",
-                  "OpenAI-Beta": "responses=experimental",
-                },
-              })
-            : openaiCompatibleText(process.env.LM_STUDIO_MODEL ?? "google/gemma-4-12b-qat", {
-                name: "lm-studio",
-                baseURL: `${baseURL}/v1`,
-                // The adapter requires a non-empty value; LM Studio does not authenticate it.
-                apiKey: "not-needed",
-                api: "chat-completions",
-              });
+        const adapter = useCodex && codexCredential
+          ? (await import("../ai/codex-adapter.server")).createCodexResponsesAdapter(
+              codexModel,
+              {
+                accessToken: codexCredential.accessToken,
+                accountId: codexCredential.accountId,
+              },
+            )
+          : openaiCompatibleText(process.env.LM_STUDIO_MODEL ?? "google/gemma-4-12b-qat", {
+              name: "lm-studio",
+              baseURL: `${baseURL}/v1`,
+              // The adapter requires a non-empty value; LM Studio does not authenticate it.
+              apiKey: "not-needed",
+              api: "chat-completions",
+            });
 
         try {
           const stream = chat({

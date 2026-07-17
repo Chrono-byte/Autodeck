@@ -9,6 +9,7 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as chatPreferences from "../chatPreferences.js";
 import type * as deckCards from "../deckCards.js";
 import type * as deckEvents from "../deckEvents.js";
 import type * as decks from "../decks.js";
@@ -24,6 +25,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  chatPreferences: typeof chatPreferences;
   deckCards: typeof deckCards;
   deckEvents: typeof deckEvents;
   decks: typeof decks;
