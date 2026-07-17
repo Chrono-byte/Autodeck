@@ -151,7 +151,7 @@ function AuthenticatedWorkspace() {
       )}
       {deck && thread && cards ? (
         <div className="workspace-columns">
-          <DeckChat key={thread._id} deck={deck} thread={thread} cards={cards} />
+          <DeckChat key={thread._id} deck={deck} thread={thread} />
           <DeckEditor deck={deck} thread={thread} cards={cards} />
         </div>
       ) : (

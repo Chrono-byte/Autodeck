@@ -250,6 +250,35 @@ export const Route = createFileRoute("/api/chat")({
           serviceTier: useCodex ? serviceTier : undefined,
         };
         logger.info("chat.provider.selected", { requestId, ...streamDetails });
+        const observabilityMiddleware: ChatMiddleware = {
+          name: "request-observability",
+          onIteration: (_ctx, info) => {
+            logger.info("chat.agent.iteration", { requestId, iteration: info.iteration + 1 });
+          },
+          onToolPhaseComplete: (_ctx, info) => {
+            logger.info("chat.agent.tools_completed", {
+              requestId,
+              tools: info.toolCalls.map((call) => call.function.name),
+              resultCount: info.results.length,
+              clientExecutionCount: info.needsClientExecution.length,
+              approvalCount: info.needsApproval.length,
+            });
+          },
+          onFinish: (_ctx, info) => {
+            logger.info("chat.agent.finished", {
+              requestId,
+              finishReason: info.finishReason,
+              durationMs: info.duration,
+            });
+          },
+          onError: (_ctx, info) => {
+            logger.error("chat.agent.failed", {
+              requestId,
+              durationMs: info.duration,
+              error: info.error,
+            });
+          },
+        };
 
         const adapter =
           useCodex && codexCredential
@@ -293,10 +322,11 @@ export const Route = createFileRoute("/api/chat")({
               analyzeDeckTool,
               comprehensiveRulesTool,
               braveSearchTool,
-              getActiveDeckDefinition,
-              editActiveDeckDefinition,
+              getActiveDeckTool,
+              editActiveDeckTool,
             ],
             agentLoopStrategy: maxIterations(12),
+            middleware: [observabilityMiddleware],
           });
           return observeStream(
             toServerSentEventsResponse(stream),

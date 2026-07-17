@@ -35,11 +35,9 @@ function textOf(message: UIMessage) {
 export function DeckChat({
   deck,
   thread,
-  cards,
 }: {
   deck: Doc<"decks">;
   thread: Doc<"threads">;
-  cards: Doc<"deckCards">[];
 }) {
   const [input, setInput] = useState("");
   const [modelChoice, setModelChoice] = useState<ModelChoice>("gpt-5.6-sol");
