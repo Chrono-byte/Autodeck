@@ -16,7 +16,18 @@ export const Route = createRootRoute({
     links: [{ rel: "stylesheet", href: stylesheet }],
   }),
   component: RootComponent,
+  notFoundComponent: NotFoundComponent,
 });
+
+function NotFoundComponent() {
+  return (
+    <main className="route-not-found">
+      <p className="eyebrow">404</p>
+      <h1>That page is not in this workspace.</h1>
+      <a href="/">Return to Autodekt</a>
+    </main>
+  );
+}
 
 function RootComponent() {
   return (

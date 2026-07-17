@@ -101,6 +101,9 @@ export const Route = createFileRoute("/api/chat")({
         const requestId = requestIdFor(request);
         const startedAt = Date.now();
         let body: {
+          threadId?: unknown;
+          runId?: unknown;
+          parentRunId?: unknown;
           messages?: UIMessage[];
           forwardedProps?: {
             provider?: unknown;
@@ -173,17 +176,15 @@ export const Route = createFileRoute("/api/chat")({
               commanderName: deck.commanderName,
               colorIdentity: deck.colorIdentity,
             },
-            cards: cards.map(
-              ({ name, quantity, zone, typeLine, oracleText, manaValue, tags }) => ({
-                name,
-                quantity,
-                zone,
-                typeLine,
-                oracleText,
-                manaValue,
-                tags,
-              }),
-            ),
+            cards: cards.map(({ name, quantity, zone, typeLine, oracleText, manaValue, tags }) => ({
+              name,
+              quantity,
+              zone,
+              typeLine,
+              oracleText,
+              manaValue,
+              tags,
+            })),
           };
         };
         try {
@@ -305,6 +306,9 @@ export const Route = createFileRoute("/api/chat")({
           const stream = chat({
             adapter,
             messages: body.messages,
+            ...(typeof body.threadId === "string" && { threadId: body.threadId }),
+            ...(typeof body.runId === "string" && { runId: body.runId }),
+            ...(typeof body.parentRunId === "string" && { parentRunId: body.parentRunId }),
             systemPrompts: [SYSTEM_PROMPT],
             ...(useCodex && {
               modelOptions: {

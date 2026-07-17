@@ -32,13 +32,7 @@ function textOf(message: UIMessage) {
     .join("");
 }
 
-export function DeckChat({
-  deck,
-  thread,
-}: {
-  deck: Doc<"decks">;
-  thread: Doc<"threads">;
-}) {
+export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"threads"> }) {
   const [input, setInput] = useState("");
   const [modelChoice, setModelChoice] = useState<ModelChoice>("gpt-5.6-sol");
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -48,6 +42,22 @@ export function DeckChat({
   const selectorRef = useRef<HTMLDivElement>(null);
   const codexStatus = useQuery(api.openaiCodex.status);
   const saveMessages = useMutation(api.threads.saveMessages);
+  const requestOptionsRef = useRef({
+    modelChoice,
+    reasoningEffort,
+    speed,
+    codexConnected: codexStatus?.connected === true,
+    deckId: deck._id,
+    threadId: thread._id,
+  });
+  requestOptionsRef.current = {
+    modelChoice,
+    reasoningEffort,
+    speed,
+    codexConnected: codexStatus?.connected === true,
+    deckId: deck._id,
+    threadId: thread._id,
+  };
 
   useEffect(() => {
     try {
@@ -90,7 +100,8 @@ export function DeckChat({
     connection: fetchServerSentEvents("/api/chat", async () => {
       const { data, error } = await authClient.convex.token();
       if (error || !data?.token) throw new Error("Your session has expired. Please sign in again.");
-      const selectedModel = codexStatus?.connected ? modelChoice : "local";
+      const selection = requestOptionsRef.current;
+      const selectedModel = selection.codexConnected ? selection.modelChoice : "local";
       return {
         headers: {
           Authorization: `Bearer ${data.token}`,
@@ -99,10 +110,10 @@ export function DeckChat({
         body: {
           provider: selectedModel === "local" ? "local" : "openai-codex",
           model: selectedModel === "local" ? undefined : selectedModel,
-          reasoningEffort,
-          speed,
-          deckId: deck._id,
-          threadId: thread._id,
+          reasoningEffort: selection.reasoningEffort,
+          speed: selection.speed,
+          deckId: selection.deckId,
+          threadId: selection.threadId,
         },
       };
     }),
@@ -322,8 +333,15 @@ export function DeckChat({
                 </div>
               )}
             </div>
-            <button disabled={!input.trim() || chat.isLoading} aria-label="Send message">
-              ↑
+            <button
+              type={chat.isLoading ? "button" : "submit"}
+              className={chat.isLoading ? "stream-stop" : undefined}
+              disabled={!chat.isLoading && !input.trim()}
+              aria-label={chat.isLoading ? "Stop response" : "Send message"}
+              title={chat.isLoading ? "Stop response" : "Send message"}
+              onClick={chat.isLoading ? () => chat.stop() : undefined}
+            >
+              {chat.isLoading ? <span className="stop-icon" aria-hidden="true" /> : "↑"}
             </button>
           </div>
         </div>

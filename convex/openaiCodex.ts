@@ -36,9 +36,7 @@ function safeError(error: unknown) {
 function logOAuth(level: OAuthLogLevel, event: string, data: Record<string, unknown> = {}) {
   const configured = process.env.LOG_LEVEL?.toLowerCase();
   const minimum: OAuthLogLevel =
-    configured === "debug" || configured === "warn" || configured === "error"
-      ? configured
-      : "info";
+    configured === "debug" || configured === "warn" || configured === "error" ? configured : "info";
   if (LOG_LEVEL_WEIGHT[level] < LOG_LEVEL_WEIGHT[minimum]) return;
   const line = JSON.stringify({
     timestamp: new Date().toISOString(),
