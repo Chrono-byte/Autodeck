@@ -1,6 +1,8 @@
 node_modules
 .output
 dist
+apps/desktop/dist
+apps/desktop/release
 .env.local
 .tanstack
 .codex-runtime

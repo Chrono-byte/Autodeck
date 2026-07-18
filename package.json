@@ -1,11 +1,18 @@
 {
   "name": "autodekt",
   "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:desktop": "pnpm --filter @autodekt/desktop dev",
     "dev:backend": "convex dev",
     "build": "vite build && tsc --noEmit",
+    "build:desktop": "pnpm --filter @autodekt/desktop build",
+    "start:desktop": "pnpm build && pnpm build:desktop && pnpm --filter @autodekt/desktop start",
+    "package:desktop": "pnpm build && pnpm --filter @autodekt/desktop package",
     "test": "vitest run",
     "test:watch": "vitest"
   },

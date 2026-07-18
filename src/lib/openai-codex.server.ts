@@ -12,7 +12,9 @@ import {
 import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 
 const PROVIDER_ID = "openai-codex";
-const RUNTIME_DIRECTORY = resolve(process.cwd(), ".codex-runtime", "credentials");
+const RUNTIME_DIRECTORY = process.env.AUTODEKT_RUNTIME_DIRECTORY
+  ? resolve(process.env.AUTODEKT_RUNTIME_DIRECTORY)
+  : resolve(process.cwd(), ".codex-runtime", "credentials");
 const operationQueues = new Map<string, Promise<void>>();
 
 type CredentialFile = Record<string, Credential>;

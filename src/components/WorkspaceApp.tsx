@@ -8,6 +8,15 @@ import { AuthScreen } from "./AuthScreen";
 import { DeckChat } from "./DeckChat";
 import { DeckEditor } from "./DeckEditor";
 
+declare global {
+  interface Window {
+    autodektDesktop?: {
+      onToggleSidebar(callback: () => void): () => void;
+      setSidebarOpen(isOpen: boolean): void;
+    };
+  }
+}
+
 function PlusIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -197,10 +206,21 @@ function AuthenticatedWorkspace() {
   useEffect(() => {
     const saved = Number(window.localStorage.getItem("autodekt:workspace-chat-split"));
     if (Number.isFinite(saved) && saved >= 20 && saved <= 80) setChatSplit(saved);
+    setSidebarOpen(window.localStorage.getItem("autodekt:sidebar-open") !== "false");
     setDeckEditorCollapsed(
       window.localStorage.getItem("autodekt:deck-editor-collapsed") === "true",
     );
   }, []);
+
+  useEffect(() => {
+    const toggleSidebar = () => setSidebarOpen((current) => !current);
+    return window.autodektDesktop?.onToggleSidebar(toggleSidebar);
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("autodekt:sidebar-open", String(sidebarOpen));
+    window.autodektDesktop?.setSidebarOpen(sidebarOpen);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {

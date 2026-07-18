@@ -1,0 +1,43 @@
+{
+  "name": "@autodekt/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "pnpm run build && electron . --dev",
+    "package": "pnpm run build && electron-builder",
+    "postinstall": "install-electron",
+    "start": "electron .",
+    "check-types": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "typescript": "latest"
+  },
+  "build": {
+    "appId": "dev.autodekt.desktop",
+    "productName": "Autodekt",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "shell/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../../dist",
+        "to": "autodekt-dist"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

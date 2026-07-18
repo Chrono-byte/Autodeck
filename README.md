@@ -16,6 +16,25 @@ pnpm dev:backend
 pnpm dev
 ```
 
+To use the client in the Electron desktop shell, keep the Convex backend running
+and launch the desktop app instead of `pnpm dev`:
+
+```bash
+pnpm dev:backend
+pnpm dev:desktop
+```
+
+The desktop package lives at `apps/desktop`. In development it reuses the
+client at `http://localhost:3000` when one is already running; otherwise it
+starts the root TanStack app and stops that child process when Electron exits.
+Set `AUTODEKT_CLIENT_URL` to wrap a different local development origin without
+starting the root development server.
+
+`pnpm dev:desktop` uses the Vite development server for HMR. The production
+desktop path does not run Vite: `pnpm start:desktop` builds once, then Electron
+serves the compiled TanStack client and server from an embedded loopback HTTP
+server. Use `pnpm package:desktop` to create the Windows installer.
+
 The Better Auth server expects `SITE_URL=http://localhost:3000` in the Convex deployment. Set it once if Convex did not already do so:
 
 ```bash
