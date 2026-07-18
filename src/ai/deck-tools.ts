@@ -6,7 +6,7 @@ const zoneSchema = z.enum(["commander", "main", "maybeboard"]);
 export const getActiveDeckDefinition = toolDefinition({
   name: "get_active_deck",
   description:
-    "Read the active deck and its current card list before assessing the deck, its ratios, or proposed changes. This returns the live list edited by both the user and assistant.",
+    "Read the live active deck and its card-level state for inspection or proposed edits.",
   inputSchema: z.object({}),
   outputSchema: z.object({
     deck: z.object({
@@ -22,6 +22,7 @@ export const getActiveDeckDefinition = toolDefinition({
         typeLine: z.string(),
         oracleText: z.string().optional(),
         manaValue: z.number(),
+        colorIdentity: z.array(z.string()),
         tags: z.array(z.string()),
       }),
     ),
@@ -30,8 +31,7 @@ export const getActiveDeckDefinition = toolDefinition({
 
 export const editActiveDeckDefinition = toolDefinition({
   name: "edit_active_deck",
-  description:
-    "Edit the active deck after verifying card text. Use upsert to add or change a card and remove to cut it. State the reason in chat after the tool succeeds.",
+  description: "Add, update, or remove one card in the live active deck.",
   inputSchema: z.object({
     action: z.enum(["upsert", "remove"]),
     cardName: z.string().min(1),
@@ -39,7 +39,11 @@ export const editActiveDeckDefinition = toolDefinition({
     zone: zoneSchema.default("main"),
     tags: z.array(z.string()).default([]),
   }),
-  outputSchema: z.object({ success: z.boolean(), message: z.string() }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    message: z.string(),
+    playableCardCount: z.number().int().nonnegative().optional(),
+  }),
 });
 
 export type DeckToolContext = {
@@ -52,6 +56,7 @@ export type DeckToolContext = {
       typeLine: string;
       oracleText?: string;
       manaValue: number;
+      colorIdentity: string[];
       tags: string[];
     }>;
   };
@@ -61,7 +66,7 @@ export type DeckToolContext = {
     quantity: number;
     zone: "commander" | "main" | "maybeboard";
     tags: string[];
-  }) => Promise<{ success: boolean; message: string }>;
+  }) => Promise<{ success: boolean; message: string; playableCardCount?: number }>;
 };
 
 export const getActiveDeckClientTool = getActiveDeckDefinition.client<DeckToolContext>(

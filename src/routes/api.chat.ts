@@ -14,12 +14,14 @@ import {
   braveSearchTool,
   comprehensiveRulesTool,
   createAnalyzeDeckTool,
+  createValidateActiveDeckTool,
   getCardOracleTagsTool,
   getCardTool,
   searchOracleTagsTool,
   searchCardsTool,
 } from "../ai/tools.server";
 import { SYSTEM_PROMPT } from "../ai/system-prompt";
+import { validateAssistantAddition } from "../lib/commander-validation";
 import { editActiveDeckDefinition, getActiveDeckDefinition } from "../ai/deck-tools";
 import { logger } from "../lib/logger.server";
 import { getScryfallCard } from "../lib/scryfall.server";
@@ -182,15 +184,18 @@ export const Route = createFileRoute("/api/chat")({
               commanderName: deck.commanderName,
               colorIdentity: deck.colorIdentity,
             },
-            cards: cards.map(({ name, quantity, zone, typeLine, oracleText, manaValue, tags }) => ({
-              name,
-              quantity,
-              zone,
-              typeLine,
-              oracleText,
-              manaValue,
-              tags,
-            })),
+            cards: cards.map(
+              ({ name, quantity, zone, typeLine, oracleText, manaValue, colorIdentity, tags }) => ({
+                name,
+                quantity,
+                zone,
+                typeLine,
+                oracleText,
+                manaValue,
+                colorIdentity,
+                tags,
+              }),
+            ),
           };
         };
         try {
@@ -202,38 +207,67 @@ export const Route = createFileRoute("/api/chat")({
 
         const getActiveDeckTool = getActiveDeckDefinition.server(readActiveDeck);
         const analyzeDeckTool = createAnalyzeDeckTool(readActiveDeck);
+        const validateActiveDeckTool = createValidateActiveDeckTool(readActiveDeck);
         const editActiveDeckTool = editActiveDeckDefinition.server(async (edit) => {
+          const zone = edit.zone ?? "main";
+          const quantity = edit.quantity ?? 1;
           if (edit.action === "remove") {
             const storedCards = await convex.query(api.deckCards.list, { deckId });
             const storedCard = storedCards.find(
-              (item) => item.name.toLocaleLowerCase() === edit.cardName.toLocaleLowerCase(),
+              (item) =>
+                item.name.toLocaleLowerCase() === edit.cardName.toLocaleLowerCase() &&
+                item.zone === zone,
             );
             if (!storedCard)
-              return { success: false, message: `${edit.cardName} is not in the active deck.` };
+              return {
+                success: false,
+                message: `${edit.cardName} is not in the active deck's ${zone}.`,
+              };
             await convex.mutation(api.deckCards.remove, {
               cardId: storedCard._id,
               threadId,
               actor: "assistant",
             });
-            return { success: true, message: `Removed ${storedCard.name}.` };
+            const playableCardCount = (await readActiveDeck()).cards
+              .filter((card) => card.zone !== "maybeboard")
+              .reduce((total, card) => total + card.quantity, 0);
+            return {
+              success: true,
+              message: `Removed ${storedCard.name} from ${storedCard.zone}.`,
+              playableCardCount,
+            };
           }
           const resolved = await getScryfallCard(edit.cardName);
+          const activeDeck = await readActiveDeck();
+          const validationErrors = validateAssistantAddition(
+            resolved,
+            zone,
+            quantity,
+            activeDeck.cards,
+          );
+          if (validationErrors.length > 0) {
+            return { success: false, message: validationErrors.join(" ") };
+          }
           await convex.mutation(api.deckCards.upsert, {
             deckId,
             threadId,
             actor: "assistant",
             name: resolved.name,
-            quantity: edit.quantity ?? 1,
-            zone: edit.zone ?? "main",
+            quantity,
+            zone,
             typeLine: resolved.typeLine,
             oracleText: resolved.oracleText,
             manaValue: resolved.manaValue,
             colorIdentity: resolved.colorIdentity,
             tags: edit.tags ?? [],
           });
+          const playableCardCount = (await readActiveDeck()).cards
+            .filter((card) => card.zone !== "maybeboard")
+            .reduce((total, card) => total + card.quantity, 0);
           return {
             success: true,
-            message: `Saved ${edit.quantity ?? 1} × ${resolved.name} to ${edit.zone ?? "main"}.`,
+            message: `Saved ${quantity} × ${resolved.name} to ${zone}.`,
+            playableCardCount,
           };
         });
         const useCodex = Boolean(codexCredential) && requested.provider !== "local";
@@ -326,6 +360,7 @@ export const Route = createFileRoute("/api/chat")({
               searchOracleTagsTool,
               searchCardsTool,
               analyzeDeckTool,
+              validateActiveDeckTool,
               comprehensiveRulesTool,
               braveSearchTool,
               getActiveDeckTool,

@@ -2,6 +2,7 @@ import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { parseDecklist, summarizeDeck, type DeckEntry } from "../lib/deck-analysis";
 import { searchBraveWeb } from "../lib/brave-search.server";
+import { validateCommanderDeck, type CommanderDeckCard } from "../lib/commander-validation";
 import { lookupComprehensiveRules } from "../lib/mtg-rules.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { fetchDeckCards, getScryfallCard, searchScryfall } from "../lib/scryfall.server";
@@ -19,7 +20,7 @@ const cardResultSchema = z.object({
 const getCardDefinition = toolDefinition({
   name: "get_card_text",
   description:
-    "Fetch current Oracle text and Commander legality for one named card. For an opening prompt that names a commander, this MUST be your first tool call. Also call it before explaining, judging, comparing, or recommending changes involving any named card. Do not rely on memory.",
+    "Fetch current Oracle text, type, mana value, color identity, and Commander legality for one named card.",
   inputSchema: z.object({
     name: z
       .string()
@@ -33,8 +34,7 @@ export const getCardTool = getCardDefinition.server(async ({ name }) => getScryf
 
 const searchCardsDefinition = toolDefinition({
   name: "search_cards",
-  description:
-    "Search current Magic card data using Scryfall syntax. Use this to discover candidates; use get_card_text before giving feedback about a specific named card.",
+  description: "Discover current Magic cards with a Scryfall search query.",
   inputSchema: z.object({
     query: z.string().min(1).describe('A Scryfall search query, such as id:simic o:"draw a card"'),
     limit: z.number().int().min(1).max(20).default(12),
@@ -63,7 +63,7 @@ const oracleTagSummarySchema = z.object({
 const searchOracleTagsDefinition = toolDefinition({
   name: "search_oracle_tags",
   description:
-    "Discover Scryfall Tagger Oracle tags by gameplay concept. Returns current community-curated tag definitions, aliases, hierarchy, card counts, and a ready-to-use otag search query. Use this when you know the role or synergy you want but do not know the correct Scryfall tag. Then pass a returned searchQuery, optionally with other Scryfall filters, to search_cards.",
+    "Find community-curated Scryfall Oracle tags for a gameplay concept and return ready-to-use search queries.",
   inputSchema: z.object({
     query: z
       .string()
@@ -96,7 +96,7 @@ export const searchOracleTagsTool = searchOracleTagsDefinition.server(async ({ q
 const getCardOracleTagsDefinition = toolDefinition({
   name: "get_card_oracle_tags",
   description:
-    "Look up the current Scryfall Tagger Oracle tags associated with one named card. Direct tags were assigned to that card; inherited tags are its broader parent categories. Use this to understand a card's community-classified roles or to discover tags for finding similar cards. Tags are discovery metadata, not authoritative card text or rules.",
+    "Return the direct and inherited community-curated Scryfall Oracle tags for one named card.",
   inputSchema: z.object({
     name: z.string().min(1).describe("The printed card name; fuzzy matching is supported."),
     limit: z.number().int().min(1).max(60).default(40),
@@ -182,7 +182,7 @@ const deckAnalysisSchema = z.object({
 const analyzeDeckDefinition = toolDefinition({
   name: "analyze_decklist",
   description:
-    "Analyze the active Commander deck, or parse a supplied decklist, using current Scryfall card data. Omit decklist to read the live active deck. Counts functional roles, returns a quantity-weighted mana curve and average mana value excluding pure lands, and identifies unresolved card names. Spell/land modal cards appear in both the land count and mana curve. Role counts can overlap.",
+    "Analyze aggregate counts, roles, mana curve, and color balance for a supplied decklist or the live active deck when decklist is omitted.",
   inputSchema: z.object({
     decklist: z
       .string()
@@ -215,6 +215,34 @@ export function activeDeckEntries(cards: ActiveDeckAnalysisCard[]): DeckEntry[] 
   return [...entries.values()];
 }
 
+const activeDeckValidationSchema = z.object({
+  valid: z.boolean(),
+  totalCards: z.number().int().nonnegative(),
+  commanderCount: z.number().int().nonnegative(),
+  colorIdentity: z.array(z.string()),
+  errors: z.array(z.string()),
+  warnings: z.array(z.string()),
+});
+
+const validateActiveDeckDefinition = toolDefinition({
+  name: "validate_active_deck",
+  description:
+    "Validate the live deck's card count, command zone, singleton rules, color identity, and current Commander legality.",
+  inputSchema: z.object({}),
+  outputSchema: activeDeckValidationSchema,
+});
+
+export function createValidateActiveDeckTool(
+  readActiveDeck: () => Promise<{ cards: CommanderDeckCard[] }>,
+) {
+  return validateActiveDeckDefinition.server(async () => {
+    const { cards } = await readActiveDeck();
+    const entries = activeDeckEntries(cards);
+    const { cards: currentCards } = entries.length ? await fetchDeckCards(entries) : { cards: [] };
+    return validateCommanderDeck(cards, currentCards);
+  });
+}
+
 export function createAnalyzeDeckTool(
   readActiveDeck: () => Promise<{ cards: ActiveDeckAnalysisCard[] }>,
 ) {
@@ -238,7 +266,7 @@ export function createAnalyzeDeckTool(
 const comprehensiveRulesDefinition = toolDefinition({
   name: "lookup_comprehensive_rules",
   description:
-    "Search the locally stored, current official Magic Comprehensive Rules by exact rule number, rules term, or natural-language phrase. Use this before answering rules or card-interaction questions, and cite returned rule numbers.",
+    "Search the current official Magic Comprehensive Rules by rule number, term, or focused question.",
   inputSchema: z.object({
     query: z
       .string()
@@ -272,7 +300,7 @@ export const comprehensiveRulesTool = comprehensiveRulesDefinition.server(
 const braveSearchDefinition = toolDefinition({
   name: "search_web",
   description:
-    "Search the current web with Brave Search for Commander deck-tech guides, strategy articles, metagame context, budget ideas, and other time-sensitive sources. Return source URLs and snippets. Use focused queries, compare multiple sources, and cite the URLs used in the answer.",
+    "Search the current web for time-sensitive Commander strategy, deck-tech, metagame, budget, or pricing sources.",
   inputSchema: z.object({
     query: z.string().min(1).max(400).describe("A focused web query of no more than 50 words."),
     count: z.number().int().min(1).max(20).default(6),

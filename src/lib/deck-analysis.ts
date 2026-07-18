@@ -5,6 +5,7 @@ export type ScryfallCard = {
   mana_cost?: string;
   cmc: number;
   color_identity: string[];
+  legalities?: Record<string, string>;
   produced_mana?: string[];
   image_uris?: {
     normal?: string;
