@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiThreadTitleRouteImport } from './routes/api.thread-title'
+import { Route as ApiOpenaiCodexRouteImport } from './routes/api.openai-codex'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiCardsResolveRouteImport } from './routes/api.cards.resolve'
 import { Route as ApiCardsImagesRouteImport } from './routes/api.cards.images'
@@ -30,6 +31,11 @@ const IndexRoute = IndexRouteImport.update({
 const ApiThreadTitleRoute = ApiThreadTitleRouteImport.update({
   id: '/api/thread-title',
   path: '/api/thread-title',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenaiCodexRoute = ApiOpenaiCodexRouteImport.update({
+  id: '/api/openai-codex',
+  path: '/api/openai-codex',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/openai-codex': typeof ApiOpenaiCodexRoute
   '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/openai-codex': typeof ApiOpenaiCodexRoute
   '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/openai-codex': typeof ApiOpenaiCodexRoute
   '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/openai-codex'
     | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/openai-codex'
     | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/openai-codex'
     | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiOpenaiCodexRoute: typeof ApiOpenaiCodexRoute
   ApiThreadTitleRoute: typeof ApiThreadTitleRoute
   ApiCardsCollectionRoute: typeof ApiCardsCollectionRoute
   ApiCardsImagesRoute: typeof ApiCardsImagesRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/api/thread-title'
       fullPath: '/api/thread-title'
       preLoaderRoute: typeof ApiThreadTitleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-codex': {
+      id: '/api/openai-codex'
+      path: '/api/openai-codex'
+      fullPath: '/api/openai-codex'
+      preLoaderRoute: typeof ApiOpenaiCodexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiOpenaiCodexRoute: ApiOpenaiCodexRoute,
   ApiThreadTitleRoute: ApiThreadTitleRoute,
   ApiCardsCollectionRoute: ApiCardsCollectionRoute,
   ApiCardsImagesRoute: ApiCardsImagesRoute,

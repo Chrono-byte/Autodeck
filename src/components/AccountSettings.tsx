@@ -1,15 +1,13 @@
 import { useEffect, useState } from "react";
-import {
-  AuthLoading,
-  Authenticated,
-  Unauthenticated,
-  useAction,
-  useMutation,
-  useQuery,
-} from "convex/react";
+import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
 import { authClient } from "../lib/auth-client";
+import {
+  connectOpenAICodex,
+  disconnectOpenAICodex,
+  useOpenAICodexStatus,
+} from "../lib/openai-codex-client";
 import { clearPersistentChats } from "../lib/persistent-chat-client";
 import { AuthScreen } from "./AuthScreen";
 
@@ -109,7 +107,7 @@ function SettingsPage() {
 
 function TitleGenerationSettings() {
   const preferences = useQuery(api.chatPreferences.get);
-  const codexStatus = useQuery(api.openaiCodex.status);
+  const { status: codexStatus } = useOpenAICodexStatus();
   const saveTitleModel = useMutation(api.chatPreferences.saveTitleModel);
   const selected = preferences?.titleModel ?? "gpt-5.4-mini";
   const isLocal = selected === "local" || selected.startsWith("local:");
@@ -169,10 +167,7 @@ function TitleGenerationSettings() {
 }
 
 function CodexConnection() {
-  const status = useQuery(api.openaiCodex.status);
-  const startDeviceAuth = useAction(api.openaiCodex.startDeviceAuth);
-  const pollDeviceAuth = useAction(api.openaiCodex.pollDeviceAuth);
-  const disconnect = useMutation(api.openaiCodex.disconnect);
+  const { status, refresh } = useOpenAICodexStatus();
   const [deviceCode, setDeviceCode] = useState<string | null>(null);
   const [verificationUri, setVerificationUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -182,24 +177,15 @@ function CodexConnection() {
     setBusy(true);
     setError("");
     try {
-      const device = await startDeviceAuth();
-      setDeviceCode(device.userCode);
-      setVerificationUri(device.verificationUri);
-      window.open(device.verificationUri, "_blank", "noopener,noreferrer");
-      const deadline = Date.now() + device.expiresInSeconds * 1000;
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => window.setTimeout(resolve, device.intervalSeconds * 1000));
-        const result = await pollDeviceAuth({
-          deviceAuthId: device.deviceAuthId,
-          userCode: device.userCode,
-        });
-        if (result.status === "connected") {
-          setDeviceCode(null);
-          setVerificationUri(null);
-          return;
-        }
-      }
-      throw new Error("The OpenAI device code expired. Start the connection again.");
+      await connectOpenAICodex((event) => {
+        if (event.type !== "device_code") return;
+        setDeviceCode(event.userCode);
+        setVerificationUri(event.verificationUri);
+        window.open(event.verificationUri, "_blank", "noopener,noreferrer");
+      });
+      setDeviceCode(null);
+      setVerificationUri(null);
+      await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to connect OpenAI Codex.");
     } finally {
@@ -208,6 +194,19 @@ function CodexConnection() {
   };
 
   const connected = status?.connected === true;
+
+  const disconnect = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await disconnectOpenAICodex();
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to disconnect OpenAI Codex.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className={`settings-card connection-settings-card ${connected ? "connected" : ""}`}>
@@ -245,6 +244,7 @@ function CodexConnection() {
         <button
           type="button"
           className="secondary-settings-button"
+          disabled={busy}
           onClick={() => void disconnect()}
         >
           Disconnect

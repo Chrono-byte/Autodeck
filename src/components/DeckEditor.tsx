@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { cardImageUrl } from "../lib/card-image";
+import { isManaColor, MANA_COLORS, type ManaColor } from "../lib/deck-analysis";
 import { formatMtgoDeck, mtgoExportFilename } from "../lib/mtgo-export";
 import { ManaSymbol } from "./ManaSymbol";
 
@@ -15,9 +16,11 @@ type ResolvedCard = {
   typeLine: string;
   oracleText?: string;
   manaValue: number;
-  colorIdentity: string[];
+  colorIdentity: ManaColor[];
   oracleId?: string;
   oracleTags?: string[];
+  illustrationIds?: string[];
+  artTags?: string[];
 };
 
 const TYPE_ORDER = [
@@ -106,7 +109,7 @@ export function DeckEditor({
   const missingSearchMetadataKey = useMemo(
     () =>
       cards
-        .filter((card) => card.oracleTags === undefined)
+        .filter((card) => card.oracleTags === undefined || card.artTags === undefined)
         .map((card) => `${card._id}:${card.name}`)
         .sort()
         .join("\n"),
@@ -122,7 +125,7 @@ export function DeckEditor({
       name: commanders.length
         ? commanders.map((commander) => commander.name).join(" & ")
         : undefined,
-      colors: ["W", "U", "B", "R", "G"].filter((color) => colors.has(color)),
+      colors: MANA_COLORS.filter((color) => colors.has(color)),
     };
   }, [cards]);
 
@@ -138,7 +141,9 @@ export function DeckEditor({
 
   useEffect(() => {
     if (!missingSearchMetadataKey) return;
-    const missingCards = cards.filter((card) => card.oracleTags === undefined);
+    const missingCards = cards.filter(
+      (card) => card.oracleTags === undefined || card.artTags === undefined,
+    );
     const controller = new AbortController();
     void fetch("/api/cards/collection", {
       method: "POST",
@@ -149,7 +154,13 @@ export function DeckEditor({
       .then(async (response) => {
         if (!response.ok) throw new Error("Card search metadata lookup failed");
         return response.json() as Promise<{
-          cards: Array<{ name: string; oracleId?: string; oracleTags?: string[] }>;
+          cards: Array<{
+            name: string;
+            oracleId?: string;
+            oracleTags?: string[];
+            illustrationIds?: string[];
+            artTags?: string[];
+          }>;
         }>;
       })
       .then(async (result) => {
@@ -164,6 +175,8 @@ export function DeckEditor({
               cardId: card._id,
               oracleId: metadata.oracleId,
               oracleTags: metadata.oracleTags ?? [],
+              illustrationIds: metadata.illustrationIds ?? [],
+              artTags: metadata.artTags ?? [],
             });
           }),
         );
@@ -275,6 +288,8 @@ export function DeckEditor({
       colorIdentity: card.colorIdentity,
       oracleId: card.oracleId,
       oracleTags: card.oracleTags,
+      illustrationIds: card.illustrationIds,
+      artTags: card.artTags,
       tags,
     });
   };
@@ -300,6 +315,8 @@ export function DeckEditor({
       colorIdentity: card.colorIdentity,
       oracleId: card.oracleId,
       oracleTags: card.oracleTags,
+      illustrationIds: card.illustrationIds,
+      artTags: card.artTags,
       tags: card.tags,
     });
   };
@@ -311,6 +328,7 @@ export function DeckEditor({
     try {
       const response = await fetch(`/api/cards/resolve?name=${encodeURIComponent(query)}`);
       const card = (await response.json()) as ResolvedCard & { error?: string };
+      card.colorIdentity = card.colorIdentity.filter(isManaColor);
       if (response.ok) {
         await saveResolved(card, 1, zone);
         setQuery("");

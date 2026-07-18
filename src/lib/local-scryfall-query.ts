@@ -10,6 +10,8 @@ export type LocalDeckSearchCard = {
   colorIdentity: string[];
   oracleId?: string;
   oracleTags?: string[];
+  illustrationIds?: string[];
+  artTags?: string[];
   tags: string[];
 };
 
@@ -31,6 +33,7 @@ const SUPPORTED_OPERATORS = [
   "commander",
   "mana value/mv/cmc",
   "otag/oracletag",
+  "art/arttag",
   "is",
   "zone",
   "decktag",
@@ -266,7 +269,7 @@ function validatePredicate(rawPredicate: string) {
     colorSet(value);
     return;
   }
-  if (["otag", "oracletag", "decktag"].includes(operatorName)) {
+  if (["otag", "oracletag", "art", "arttag", "decktag"].includes(operatorName)) {
     requireOperator(operatorName, operator, [":", "=", "!="]);
     return;
   }
@@ -340,6 +343,12 @@ function matchesPredicate(
       : false;
     return equalityResult(storedMatch || indexedMatch, operator);
   }
+  if (operatorName === "art" || operatorName === "arttag") {
+    return equalityResult(
+      card.artTags?.some((tag) => tag.toLocaleLowerCase() === value) ?? false,
+      operator,
+    );
+  }
   if (operatorName === "is") return equalityResult(isPredicate(card, value), operator);
   if (operatorName === "zone") return equalityResult(card.zone === value, operator);
   if (operatorName === "decktag") {
@@ -366,6 +375,10 @@ function evaluate(
 
 export function queryUsesOracleTags(query: string) {
   return /(?:^|[\s(])-?(?:otag|oracletag)(?::|=)/i.test(query);
+}
+
+export function queryUsesArtTags(query: string) {
+  return /(?:^|[\s(])-?(?:art|arttag)(?::|=)/i.test(query);
 }
 
 export function searchLocalDeck(

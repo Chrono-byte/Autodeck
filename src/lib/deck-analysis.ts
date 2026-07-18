@@ -1,6 +1,7 @@
 export type ScryfallCard = {
   name: string;
   oracle_id?: string;
+  illustration_id?: string;
   type_line: string;
   oracle_text?: string;
   mana_cost?: string;
@@ -15,6 +16,7 @@ export type ScryfallCard = {
   layout?: string;
   card_faces?: Array<{
     name: string;
+    illustration_id?: string;
     type_line?: string;
     oracle_text?: string;
     mana_cost?: string;
@@ -46,6 +48,10 @@ export type ManaCurveBucket = (typeof MANA_CURVE_KEYS)[number];
 export const MANA_COLORS = ["W", "U", "B", "R", "G"] as const;
 
 export type ManaColor = (typeof MANA_COLORS)[number];
+
+export function isManaColor(value: string): value is ManaColor {
+  return MANA_COLORS.some((color) => color === value);
+}
 
 export type ColorBalanceAssessment =
   | "noDemand"

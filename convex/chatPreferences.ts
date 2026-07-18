@@ -1,41 +1,16 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-
-const model = v.union(
-  v.literal("local"),
-  v.literal("gpt-5.6-sol"),
-  v.literal("gpt-5.6-terra"),
-  v.literal("gpt-5.6-luna"),
-  v.literal("gpt-5.5"),
-  v.literal("gpt-5.4"),
-  v.literal("gpt-5.4-mini"),
-  v.literal("gpt-5.3-codex-spark"),
-);
-
-const reasoningEffort = v.union(
-  v.literal("low"),
-  v.literal("medium"),
-  v.literal("high"),
-  v.literal("xhigh"),
-);
-
-const speed = v.union(v.literal("standard"), v.literal("fast"));
-
-async function ownerId(ctx: {
-  auth: { getUserIdentity: () => Promise<{ subject: string } | null> };
-}) {
-  const identity = await ctx.auth.getUserIdentity();
-  if (!identity) throw new Error("Not authenticated");
-  return identity.subject;
-}
+import { requireOwnerId } from "./authz";
+import { chatPreferenceSelection, model, reasoningEffort, speed } from "./validators";
 
 export const get = query({
   args: {},
+  returns: v.union(chatPreferenceSelection, v.null()),
   handler: async (ctx) => {
-    const owner = await ownerId(ctx);
+    const ownerId = await requireOwnerId(ctx);
     const preferences = await ctx.db
       .query("chatPreferences")
-      .withIndex("by_owner", (q) => q.eq("ownerId", owner))
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .unique();
     if (!preferences) return null;
     return {
@@ -49,13 +24,14 @@ export const get = query({
 
 export const save = mutation({
   args: { model, reasoningEffort, speed },
+  returns: v.id("chatPreferences"),
   handler: async (ctx, selection) => {
-    const owner = await ownerId(ctx);
+    const ownerId = await requireOwnerId(ctx);
     const existing = await ctx.db
       .query("chatPreferences")
-      .withIndex("by_owner", (q) => q.eq("ownerId", owner))
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .unique();
-    const value = { ownerId: owner, ...selection, updatedAt: Date.now() };
+    const value = { ownerId, ...selection, updatedAt: Date.now() };
     if (existing) {
       await ctx.db.patch(existing._id, value);
       return existing._id;
@@ -66,19 +42,20 @@ export const save = mutation({
 
 export const saveTitleModel = mutation({
   args: { titleModel: v.string() },
+  returns: v.id("chatPreferences"),
   handler: async (ctx, { titleModel }) => {
-    const owner = await ownerId(ctx);
+    const ownerId = await requireOwnerId(ctx);
     const normalized = titleModel.trim() || "local";
     const existing = await ctx.db
       .query("chatPreferences")
-      .withIndex("by_owner", (q) => q.eq("ownerId", owner))
+      .withIndex("by_owner", (q) => q.eq("ownerId", ownerId))
       .unique();
     if (existing) {
       await ctx.db.patch(existing._id, { titleModel: normalized, updatedAt: Date.now() });
       return existing._id;
     }
     return ctx.db.insert("chatPreferences", {
-      ownerId: owner,
+      ownerId,
       model: "gpt-5.6-sol",
       reasoningEffort: "medium",
       speed: "standard",

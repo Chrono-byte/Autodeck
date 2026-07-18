@@ -4,6 +4,7 @@ import { betterAuth } from "better-auth/minimal";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import { query } from "./_generated/server";
+import { v } from "convex/values";
 import authConfig from "./auth.config";
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
@@ -25,5 +26,10 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
 
 export const getCurrentUser = query({
   args: {},
-  handler: async (ctx) => authComponent.getAuthUser(ctx),
+  returns: v.union(v.object({ id: v.string(), name: v.string(), email: v.string() }), v.null()),
+  handler: async (ctx) => {
+    const user = await authComponent.getAuthUser(ctx);
+    if (!user) return null;
+    return { id: user._id, name: user.name, email: user.email };
+  },
 });

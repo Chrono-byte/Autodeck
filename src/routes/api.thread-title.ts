@@ -1,52 +1,21 @@
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createFileRoute } from "@tanstack/react-router";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { authenticateConvexRequest } from "../lib/convex-request-auth.server";
+import { isLoopbackRequest } from "../lib/local-request";
+import { resolveOpenAICodexCredential } from "../lib/openai-codex.server";
 import { cleanGeneratedThreadTitle } from "../lib/thread-title";
 
 const CODEX_TITLE_MODELS = new Set(["gpt-5.4-mini", "gpt-5.3-codex-spark"]);
-
-function firstUserMessage(messageState: unknown) {
-  if (!Array.isArray(messageState)) return "";
-  for (const message of messageState) {
-    if (
-      !message ||
-      typeof message !== "object" ||
-      !("role" in message) ||
-      message.role !== "user"
-    ) {
-      continue;
-    }
-    if (!("parts" in message) || !Array.isArray(message.parts)) continue;
-    const parts = message.parts as unknown[];
-    const content = parts
-      .filter((part): part is { type: "text"; content: string } =>
-        Boolean(
-          part &&
-          typeof part === "object" &&
-          "type" in part &&
-          part.type === "text" &&
-          "content" in part &&
-          typeof part.content === "string",
-        ),
-      )
-      .map((part) => part.content)
-      .join("\n")
-      .trim();
-    if (content) return content;
-  }
-  return "";
-}
 
 export const Route = createFileRoute("/api/thread-title")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const authHeader = request.headers.get("authorization");
-        const convexUrl = process.env.VITE_CONVEX_URL;
-        if (!authHeader?.startsWith("Bearer ") || !convexUrl) {
+        const authenticated = await authenticateConvexRequest(request);
+        if (!authenticated) {
           return Response.json({ error: "Authentication is required." }, { status: 401 });
         }
 
@@ -60,8 +29,7 @@ export const Route = createFileRoute("/api/thread-title")({
           return Response.json({ error: "A thread is required." }, { status: 400 });
         }
 
-        const convex = new ConvexHttpClient(convexUrl);
-        convex.setAuth(authHeader.slice("Bearer ".length));
+        const { convex, ownerId } = authenticated;
         const threadId = body.threadId as Id<"threads">;
         const thread = await convex.query(api.threads.get, { threadId });
         if (!thread) return Response.json({ error: "Thread not found." }, { status: 404 });
@@ -71,7 +39,8 @@ export const Route = createFileRoute("/api/thread-title")({
         }
         const sourceMessage =
           (typeof body.message === "string" ? body.message.trim() : "") ||
-          firstUserMessage(thread.messageState);
+          thread.firstUserText?.trim() ||
+          "";
         if (!sourceMessage) {
           return Response.json(
             { error: "The thread needs a user message before its title can be generated." },
@@ -82,6 +51,12 @@ export const Route = createFileRoute("/api/thread-title")({
         const preferences = await convex.query(api.chatPreferences.get, {});
         const selected = preferences?.titleModel ?? "gpt-5.4-mini";
         const wantsLocal = selected === "local" || selected.startsWith("local:");
+        if (!wantsLocal && !isLoopbackRequest(request)) {
+          return Response.json(
+            { error: "ChatGPT subscription models are available only on localhost." },
+            { status: 403 },
+          );
+        }
         const requestedLocalModel = selected.startsWith("local:")
           ? selected.slice("local:".length).trim()
           : "";
@@ -91,11 +66,7 @@ export const Route = createFileRoute("/api/thread-title")({
           process.env.LM_STUDIO_MODEL ||
           "google/gemma-4-12b-qat";
 
-        const credential = wantsLocal
-          ? null
-          : await convex.action(api.openaiCodex.resolveAccessToken, {
-              requestId: crypto.randomUUID(),
-            });
+        const credential = wantsLocal ? null : await resolveOpenAICodexCredential(ownerId);
         const useCodex = Boolean(credential) && CODEX_TITLE_MODELS.has(selected);
         const baseURL = (process.env.LM_STUDIO_URL ?? "http://127.0.0.1:1234")
           .replace(/\/$/, "")

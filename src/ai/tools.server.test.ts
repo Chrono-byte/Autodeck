@@ -149,4 +149,38 @@ describe("createSearchActiveDeckTool", () => {
       warnings: [expect.stringContaining("Local Oracle-tag metadata is missing for: Sol Ring")],
     });
   });
+
+  it("searches stored art tags and warns about missing local art metadata", async () => {
+    const tool = createSearchActiveDeckTool(async () => ({
+      cards: [
+        {
+          name: "Dragon's Hoard",
+          quantity: 1,
+          zone: "main" as const,
+          typeLine: "Artifact",
+          manaValue: 3,
+          colorIdentity: [],
+          artTags: ["dragon"],
+          tags: [],
+        },
+        {
+          name: "Sol Ring",
+          quantity: 1,
+          zone: "main" as const,
+          typeLine: "Artifact",
+          manaValue: 1,
+          colorIdentity: [],
+          tags: [],
+        },
+      ],
+    }));
+
+    const result = await tool.execute?.({ query: "art:dragon" });
+
+    expect(result).toMatchObject({
+      matchedCards: 1,
+      matches: [expect.objectContaining({ name: "Dragon's Hoard" })],
+      warnings: [expect.stringContaining("Local art-tag metadata is missing for: Sol Ring")],
+    });
+  });
 });

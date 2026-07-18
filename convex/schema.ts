@@ -1,5 +1,16 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import {
+  actor,
+  color,
+  deckEventAction,
+  deckZone,
+  messageRole,
+  messageStatus,
+  model,
+  reasoningEffort,
+  speed,
+} from "./validators";
 
 export default defineSchema({
   decks: defineTable({
@@ -8,30 +19,52 @@ export default defineSchema({
     format: v.literal("commander"),
     commanderName: v.optional(v.string()),
     description: v.optional(v.string()),
-    colorIdentity: v.array(v.string()),
+    colorIdentity: v.array(color),
+    deletingAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("by_owner_updated", ["ownerId", "updatedAt"]),
+    lastActivityAt: v.number(),
+  }).index("by_owner_deleting_activity", ["ownerId", "deletingAt", "lastActivityAt"]),
 
   threads: defineTable({
     ownerId: v.string(),
     deckId: v.id("decks"),
     title: v.string(),
     archived: v.boolean(),
-    pinned: v.optional(v.boolean()),
-    messageState: v.optional(v.any()),
+    pinned: v.boolean(),
+    firstUserText: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastActivityAt: v.number(),
+  })
+    .index("by_deck_archived_pinned_activity", ["deckId", "archived", "pinned", "lastActivityAt"])
+    .index("by_owner_archived_pinned_activity", [
+      "ownerId",
+      "archived",
+      "pinned",
+      "lastActivityAt",
+    ]),
+
+  threadMessages: defineTable({
+    threadId: v.id("threads"),
+    messageId: v.string(),
+    order: v.number(),
+    role: messageRole,
+    status: messageStatus,
+    serializedPayload: v.optional(v.string()),
+    chunkCount: v.number(),
+    searchText: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("by_deck_updated", ["deckId", "updatedAt"])
-    .index("by_owner_updated", ["ownerId", "updatedAt"]),
+    .index("by_thread_order", ["threadId", "order"])
+    .index("by_thread_message", ["threadId", "messageId"]),
 
-  threadMessageChunks: defineTable({
-    threadId: v.id("threads"),
-    messageIndex: v.number(),
+  threadMessagePayloadChunks: defineTable({
+    messageId: v.id("threadMessages"),
     chunkIndex: v.number(),
     content: v.string(),
-  }).index("by_thread_message", ["threadId", "messageIndex", "chunkIndex"]),
+  }).index("by_message_chunk", ["messageId", "chunkIndex"]),
 
   deckCards: defineTable({
     ownerId: v.string(),
@@ -39,15 +72,17 @@ export default defineSchema({
     name: v.string(),
     normalizedName: v.string(),
     quantity: v.number(),
-    zone: v.union(v.literal("commander"), v.literal("main"), v.literal("maybeboard")),
+    zone: deckZone,
     typeLine: v.string(),
     oracleText: v.optional(v.string()),
     manaValue: v.number(),
-    colorIdentity: v.array(v.string()),
+    colorIdentity: v.array(color),
     oracleId: v.optional(v.string()),
     oracleTags: v.optional(v.array(v.string())),
+    illustrationIds: v.optional(v.array(v.string())),
+    artTags: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
-    addedBy: v.union(v.literal("user"), v.literal("assistant")),
+    addedBy: actor,
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -58,41 +93,18 @@ export default defineSchema({
     ownerId: v.string(),
     deckId: v.id("decks"),
     threadId: v.optional(v.id("threads")),
-    actor: v.union(v.literal("user"), v.literal("assistant")),
-    action: v.string(),
+    actor,
+    action: deckEventAction,
     cardName: v.optional(v.string()),
     detail: v.optional(v.string()),
     createdAt: v.number(),
   }).index("by_deck_created", ["deckId", "createdAt"]),
 
-  openaiCodexCredentials: defineTable({
-    ownerId: v.string(),
-    accessToken: v.string(),
-    refreshToken: v.string(),
-    expiresAt: v.number(),
-    accountId: v.string(),
-    updatedAt: v.number(),
-  }).index("by_owner", ["ownerId"]),
-
   chatPreferences: defineTable({
     ownerId: v.string(),
-    model: v.union(
-      v.literal("local"),
-      v.literal("gpt-5.6-sol"),
-      v.literal("gpt-5.6-terra"),
-      v.literal("gpt-5.6-luna"),
-      v.literal("gpt-5.5"),
-      v.literal("gpt-5.4"),
-      v.literal("gpt-5.4-mini"),
-      v.literal("gpt-5.3-codex-spark"),
-    ),
-    reasoningEffort: v.union(
-      v.literal("low"),
-      v.literal("medium"),
-      v.literal("high"),
-      v.literal("xhigh"),
-    ),
-    speed: v.union(v.literal("standard"), v.literal("fast")),
+    model,
+    reasoningEffort,
+    speed,
     titleModel: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_owner", ["ownerId"]),

@@ -4,6 +4,7 @@ import { parseDecklist, summarizeDeck, type DeckEntry } from "../lib/deck-analys
 import { searchBraveWeb } from "../lib/brave-search.server";
 import { validateCommanderDeck, type CommanderDeckCard } from "../lib/commander-validation";
 import {
+  queryUsesArtTags,
   queryUsesOracleTags,
   searchLocalDeck,
   type LocalDeckSearchCard,
@@ -273,13 +274,13 @@ export function createAnalyzeDeckTool(
 const searchActiveDeckDefinition = toolDefinition({
   name: "search_active_deck",
   description:
-    "Filter the live deck entirely from stored local card metadata with Scryfall-style syntax. Supports name/n, type/t, oracle/o, identity/id, mv/cmc, otag/oracletag, is, parentheses, OR, and -negation; also supports local zone and decktag filters. Use quoted text instead of regular expressions.",
+    "Filter the live deck entirely from stored local card metadata with Scryfall-style syntax. Supports name/n, type/t, oracle/o, identity/id, mv/cmc, otag/oracletag, art/arttag, is, parentheses, OR, and -negation; also supports local zone and decktag filters. Use quoted text instead of regular expressions.",
   inputSchema: z.object({
     query: z
       .string()
       .min(1)
       .max(400)
-      .describe('A Scryfall-style query such as "otag:ramp mv<=3 -t:land".'),
+      .describe('A Scryfall-style query such as "otag:ramp mv<=3 -t:land" or "art:dragon".'),
     includeMaybeboard: z
       .boolean()
       .nullish()
@@ -322,6 +323,17 @@ export function createSearchActiveDeckTool(
       if (missingTagMetadata.length > 0) {
         warnings.push(
           `Local Oracle-tag metadata is missing for: ${missingTagMetadata.join(", ")}. Re-resolve or re-import these cards to index their tags.`,
+        );
+      }
+    }
+
+    if (queryUsesArtTags(query)) {
+      const missingTagMetadata = cards
+        .filter((card) => card.artTags === undefined)
+        .map((card) => card.name);
+      if (missingTagMetadata.length > 0) {
+        warnings.push(
+          `Local art-tag metadata is missing for: ${missingTagMetadata.join(", ")}. Re-resolve or re-import these cards to index their tags.`,
         );
       }
     }

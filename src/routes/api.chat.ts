@@ -7,9 +7,9 @@ import {
 } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createFileRoute } from "@tanstack/react-router";
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { DEFAULT_CODEX_MODEL, isCodexModel, normalizeReasoningEffort } from "../ai/codex-models";
 import {
   braveSearchTool,
   comprehensiveRulesTool,
@@ -23,21 +23,15 @@ import {
 } from "../ai/tools.server";
 import { SYSTEM_PROMPT } from "../ai/system-prompt";
 import { validateAssistantAddition } from "../lib/commander-validation";
+import { authenticateConvexRequest } from "../lib/convex-request-auth.server";
+import { isManaColor } from "../lib/deck-analysis";
 import { editActiveDeckDefinition, getActiveDeckDefinition } from "../ai/deck-tools";
 import { logger } from "../lib/logger.server";
+import { isLoopbackRequest } from "../lib/local-request";
+import { resolveOpenAICodexCredential } from "../lib/openai-codex.server";
+import { scryfallArtTagCatalog } from "../lib/scryfall-art-tags.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { getScryfallCard } from "../lib/scryfall.server";
-
-const CODEX_MODELS = new Set([
-  "gpt-5.6-sol",
-  "gpt-5.6-terra",
-  "gpt-5.6-luna",
-  "gpt-5.5",
-  "gpt-5.4",
-  "gpt-5.4-mini",
-  "gpt-5.3-codex-spark",
-]);
-const REASONING_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 
 function requestIdFor(request: Request) {
   const supplied = request.headers.get("x-request-id");
@@ -136,38 +130,50 @@ export const Route = createFileRoute("/api/chat")({
         }
         logger.info("chat.request.started", { requestId, messageCount: body.messages.length });
 
-        const authHeader = request.headers.get("authorization");
-        const convexUrl = process.env.VITE_CONVEX_URL;
-        if (!authHeader?.startsWith("Bearer ") || !convexUrl) {
+        const authenticated = await authenticateConvexRequest(request);
+        if (!authenticated) {
           logger.warn("chat.request.unauthorized", {
             requestId,
-            reason: !convexUrl ? "convex_not_configured" : "missing_bearer_token",
+            reason: "missing_or_invalid_session",
           });
           return jsonError("Authentication is required.", 401, requestId);
         }
+        const { convex, ownerId } = authenticated;
+        const requested = body.forwardedProps ?? {};
 
-        const convex = new ConvexHttpClient(convexUrl);
-        convex.setAuth(authHeader.slice("Bearer ".length));
+        if (requested.provider !== "local" && requested.provider !== "openai-codex") {
+          return jsonError("A supported model provider is required.", 400, requestId);
+        }
+        const wantsCodex = requested.provider === "openai-codex";
+        if (wantsCodex && !isLoopbackRequest(request)) {
+          return jsonError(
+            "ChatGPT subscription models are available only on localhost.",
+            403,
+            requestId,
+          );
+        }
 
         let codexCredential: { accessToken: string; accountId: string } | null = null;
-        try {
-          codexCredential = await convex.action(api.openaiCodex.resolveAccessToken, { requestId });
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Unable to resolve Codex credentials.";
-          if (/not authenticated/i.test(message)) {
-            logger.warn("chat.request.session_expired", { requestId });
-            return jsonError("Your session has expired.", 401, requestId);
+        if (wantsCodex) {
+          try {
+            codexCredential = await resolveOpenAICodexCredential(ownerId);
+          } catch (error) {
+            logger.error("chat.auth.resolve_failed", { requestId, error });
+            return jsonError("Unable to prepare the selected model.", 502, requestId);
           }
-          logger.error("chat.auth.resolve_failed", { requestId, error });
-          return jsonError("Unable to prepare the selected model.", 502, requestId);
+          if (!codexCredential) {
+            return jsonError(
+              "Connect ChatGPT in account settings before using this model.",
+              409,
+              requestId,
+            );
+          }
         }
 
         const baseURL = (process.env.LM_STUDIO_URL ?? "http://127.0.0.1:1234")
           .replace(/\/$/, "")
           .replace(/\/v1$/, "");
 
-        const requested = body.forwardedProps ?? {};
         if (typeof requested.deckId !== "string" || typeof requested.threadId !== "string") {
           logger.warn("chat.request.missing_deck_context", { requestId });
           return jsonError("The active deck context is required.", 400, requestId);
@@ -197,6 +203,8 @@ export const Route = createFileRoute("/api/chat")({
                 colorIdentity,
                 oracleId,
                 oracleTags,
+                illustrationIds,
+                artTags,
                 tags,
               }) => ({
                 name,
@@ -208,6 +216,8 @@ export const Route = createFileRoute("/api/chat")({
                 colorIdentity,
                 oracleId,
                 oracleTags,
+                illustrationIds,
+                artTags,
                 tags,
               }),
             ),
@@ -254,8 +264,18 @@ export const Route = createFileRoute("/api/chat")({
             };
           }
           const resolved = await getScryfallCard(edit.cardName);
-          const tagIndex = await scryfallOracleTagCatalog.tagSlugsForOracleIds([resolved.oracleId]);
-          const oracleTags = [...(tagIndex.tagsByOracleId.get(resolved.oracleId) ?? [])];
+          const [oracleTagIndex, artTagIndex] = await Promise.all([
+            scryfallOracleTagCatalog.tagSlugsForOracleIds([resolved.oracleId]),
+            scryfallArtTagCatalog.tagSlugsForIllustrationIds(resolved.illustrationIds),
+          ]);
+          const oracleTags = [...(oracleTagIndex.tagsByOracleId.get(resolved.oracleId) ?? [])];
+          const artTags = [
+            ...new Set(
+              resolved.illustrationIds.flatMap((illustrationId) => [
+                ...(artTagIndex.tagsByIllustrationId.get(illustrationId) ?? []),
+              ]),
+            ),
+          ];
           const activeDeck = await readActiveDeck();
           const validationErrors = validateAssistantAddition(
             resolved,
@@ -276,9 +296,11 @@ export const Route = createFileRoute("/api/chat")({
             typeLine: resolved.typeLine,
             oracleText: resolved.oracleText,
             manaValue: resolved.manaValue,
-            colorIdentity: resolved.colorIdentity,
+            colorIdentity: resolved.colorIdentity.filter(isManaColor),
             oracleId: resolved.oracleId,
             oracleTags,
+            illustrationIds: resolved.illustrationIds,
+            artTags,
             tags: edit.tags ?? [],
           });
           const playableCardCount = (await readActiveDeck()).cards
@@ -290,16 +312,9 @@ export const Route = createFileRoute("/api/chat")({
             playableCardCount,
           };
         });
-        const useCodex = Boolean(codexCredential) && requested.provider !== "local";
-        const codexModel =
-          typeof requested.model === "string" && CODEX_MODELS.has(requested.model)
-            ? requested.model
-            : "gpt-5.6-sol";
-        const reasoningEffort =
-          typeof requested.reasoningEffort === "string" &&
-          REASONING_EFFORTS.has(requested.reasoningEffort)
-            ? requested.reasoningEffort
-            : "medium";
+        const useCodex = wantsCodex;
+        const codexModel = isCodexModel(requested.model) ? requested.model : DEFAULT_CODEX_MODEL;
+        const reasoningEffort = normalizeReasoningEffort(requested.reasoningEffort, codexModel);
         const serviceTier = requested.speed === "fast" ? "priority" : "default";
         const provider = useCodex ? "openai-codex" : "lm-studio";
         const selectedModel = useCodex

@@ -9,14 +9,15 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as authz from "../authz.js";
 import type * as chatPreferences from "../chatPreferences.js";
 import type * as deckCards from "../deckCards.js";
 import type * as deckEvents from "../deckEvents.js";
 import type * as decks from "../decks.js";
 import type * as http from "../http.js";
-import type * as messageChunks from "../messageChunks.js";
-import type * as openaiCodex from "../openaiCodex.js";
+import type * as messagePayload from "../messagePayload.js";
 import type * as threads from "../threads.js";
+import type * as validators from "../validators.js";
 
 import type {
   ApiFromModules,
@@ -26,14 +27,15 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  authz: typeof authz;
   chatPreferences: typeof chatPreferences;
   deckCards: typeof deckCards;
   deckEvents: typeof deckEvents;
   decks: typeof decks;
   http: typeof http;
-  messageChunks: typeof messageChunks;
-  openaiCodex: typeof openaiCodex;
+  messagePayload: typeof messagePayload;
   threads: typeof threads;
+  validators: typeof validators;
 }>;
 
 /**

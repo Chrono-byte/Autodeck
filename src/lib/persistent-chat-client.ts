@@ -18,7 +18,7 @@ export interface QueuedChatMessage {
 export interface PersistentChatRequestOptions {
   provider: "local" | "openai-codex";
   model?: string;
-  reasoningEffort: "low" | "medium" | "high" | "xhigh";
+  reasoningEffort: "low" | "medium" | "high" | "xhigh" | "max";
   speed: "standard" | "fast";
   deckId: string;
   threadId: string;
@@ -106,8 +106,20 @@ class PersistentChatSession {
   }
 
   hydrate(messages: ChatMessages) {
-    if (this.snapshot.messages.length > 0 || messages.length === 0) return;
-    this.client.setMessagesManually(messages);
+    if (messages.length === 0) return;
+    const currentById = new Map(this.snapshot.messages.map((message) => [message.id, message]));
+    const persistedIds = new Set(messages.map((message) => message.id));
+    const merged = [
+      ...messages.map((message) => currentById.get(message.id) ?? message),
+      ...this.snapshot.messages.filter((message) => !persistedIds.has(message.id)),
+    ];
+    if (
+      merged.length === this.snapshot.messages.length &&
+      merged.every((message, index) => message === this.snapshot.messages[index])
+    ) {
+      return;
+    }
+    this.client.setMessagesManually(merged);
   }
 
   sendMessage(content: string) {

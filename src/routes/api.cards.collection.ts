@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseDecklist } from "../lib/deck-analysis";
 import { fetchDeckCards } from "../lib/scryfall.server";
+import { scryfallArtTagCatalog } from "../lib/scryfall-art-tags.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 
 export const Route = createFileRoute("/api/cards/collection")({
@@ -17,7 +18,16 @@ export const Route = createFileRoute("/api/cards/collection")({
         const oracleIds = cards
           .map((card) => card.oracle_id)
           .filter((oracleId): oracleId is string => oracleId !== undefined);
-        const tagIndex = await scryfallOracleTagCatalog.tagSlugsForOracleIds(oracleIds);
+        const illustrationIds = cards.flatMap((card) => [
+          ...(card.illustration_id ? [card.illustration_id] : []),
+          ...(card.card_faces?.flatMap((face) =>
+            face.illustration_id ? [face.illustration_id] : [],
+          ) ?? []),
+        ]);
+        const [oracleTagIndex, artTagIndex] = await Promise.all([
+          scryfallOracleTagCatalog.tagSlugsForOracleIds(oracleIds),
+          scryfallArtTagCatalog.tagSlugsForIllustrationIds(illustrationIds),
+        ]);
         const quantities = new Map(
           entries.map((entry) => [entry.name.toLocaleLowerCase(), entry.quantity]),
         );
@@ -26,8 +36,26 @@ export const Route = createFileRoute("/api/cards/collection")({
             name: card.name,
             oracleId: card.oracle_id,
             oracleTags: card.oracle_id
-              ? [...(tagIndex.tagsByOracleId.get(card.oracle_id) ?? [])]
+              ? [...(oracleTagIndex.tagsByOracleId.get(card.oracle_id) ?? [])]
               : [],
+            illustrationIds: [
+              ...(card.illustration_id ? [card.illustration_id] : []),
+              ...(card.card_faces?.flatMap((face) =>
+                face.illustration_id ? [face.illustration_id] : [],
+              ) ?? []),
+            ],
+            artTags: [
+              ...new Set(
+                [
+                  ...(card.illustration_id ? [card.illustration_id] : []),
+                  ...(card.card_faces?.flatMap((face) =>
+                    face.illustration_id ? [face.illustration_id] : [],
+                  ) ?? []),
+                ].flatMap((illustrationId) => [
+                  ...(artTagIndex.tagsByIllustrationId.get(illustrationId) ?? []),
+                ]),
+              ),
+            ],
             quantity: quantities.get(card.name.toLocaleLowerCase()) ?? 1,
             typeLine: card.type_line,
             oracleText:

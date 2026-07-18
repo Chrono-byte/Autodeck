@@ -48,6 +48,90 @@ function ArchiveIcon() {
   );
 }
 
+function SidebarThreadList({
+  deckId,
+  activeThreadId,
+  generatingTitleId,
+  onSelect,
+  onStart,
+  onSetPinned,
+  onArchive,
+  onOpenMenu,
+}: {
+  deckId: Id<"decks">;
+  activeThreadId: Id<"threads"> | null;
+  generatingTitleId: Id<"threads"> | null;
+  onSelect: (threadId: Id<"threads">) => void;
+  onStart: () => void;
+  onSetPinned: (thread: Doc<"threads">) => void;
+  onArchive: (threadId: Id<"threads">) => void;
+  onOpenMenu: (thread: Doc<"threads">, x: number, y: number) => void;
+}) {
+  const threads = useQuery(api.threads.listByDeck, { deckId });
+  return (
+    <div className="thread-nav">
+      {threads?.map((thread) => (
+        <div
+          className={`thread-nav-row ${thread._id === activeThreadId ? "active" : ""}`}
+          key={thread._id}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onOpenMenu(
+              thread,
+              Math.max(8, Math.min(event.clientX, window.innerWidth - 210)),
+              Math.max(8, Math.min(event.clientY, window.innerHeight - 190)),
+            );
+          }}
+        >
+          <button
+            type="button"
+            className="thread-nav-main"
+            title={thread.title}
+            onClick={() => onSelect(thread._id)}
+            onKeyDown={(event) => {
+              if (!(event.shiftKey && event.key === "F10")) return;
+              event.preventDefault();
+              const bounds = event.currentTarget.getBoundingClientRect();
+              onOpenMenu(
+                thread,
+                Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 210)),
+                Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 190)),
+              );
+            }}
+            aria-haspopup="menu"
+          >
+            {thread.pinned && <PinIcon filled />}
+            <span>{thread.title}</span>
+          </button>
+          <div className="thread-nav-actions">
+            <button
+              type="button"
+              className={thread.pinned ? "active" : ""}
+              title={thread.pinned ? "Unpin thread" : "Pin thread"}
+              aria-label={thread.pinned ? "Unpin thread" : "Pin thread"}
+              onClick={() => onSetPinned(thread)}
+            >
+              <PinIcon filled={thread.pinned} />
+            </button>
+            <button
+              type="button"
+              title="Archive thread"
+              aria-label="Archive thread"
+              disabled={generatingTitleId === thread._id}
+              onClick={() => onArchive(thread._id)}
+            >
+              <ArchiveIcon />
+            </button>
+          </div>
+        </div>
+      ))}
+      <button className="add-thread" onClick={onStart}>
+        <PlusIcon /> New thread
+      </button>
+    </div>
+  );
+}
+
 export function WorkspaceApp() {
   return (
     <>
@@ -132,8 +216,7 @@ function AuthenticatedWorkspace() {
     }
   }, [deckId, decks]);
 
-  const allThreads = useQuery(api.threads.listAll);
-  const threads = allThreads?.filter((item) => item.deckId === deckId);
+  const threads = useQuery(api.threads.listByDeck, deckId ? { deckId } : "skip");
   const cards = useQuery(api.deckCards.list, deckId ? { deckId } : "skip");
   const deck = decks?.find((item) => item._id === deckId);
 
@@ -282,78 +365,27 @@ function AuthenticatedWorkspace() {
                 </button>
               </div>
               {expandedDeckIds.has(String(item._id)) && (
-                <div className="thread-nav">
-                  {allThreads
-                    ?.filter((threadItem) => threadItem.deckId === item._id)
-                    .map((threadItem) => (
-                      <div
-                        className={`thread-nav-row ${threadItem._id === threadId ? "active" : ""}`}
-                        key={threadItem._id}
-                        onContextMenu={(event) => {
-                          event.preventDefault();
-                          setThreadMenu({
-                            thread: threadItem,
-                            x: Math.max(8, Math.min(event.clientX, window.innerWidth - 210)),
-                            y: Math.max(8, Math.min(event.clientY, window.innerHeight - 190)),
-                          });
-                        }}
-                      >
-                        <button
-                          type="button"
-                          className="thread-nav-main"
-                          title={threadItem.title}
-                          onClick={() => {
-                            setDeckId(item._id);
-                            setThreadId(threadItem._id);
-                          }}
-                          onKeyDown={(event) => {
-                            if (!(event.shiftKey && event.key === "F10")) return;
-                            event.preventDefault();
-                            const bounds = event.currentTarget.getBoundingClientRect();
-                            setThreadMenu({
-                              thread: threadItem,
-                              x: Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 210)),
-                              y: Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 190)),
-                            });
-                          }}
-                          aria-haspopup="menu"
-                        >
-                          {threadItem.pinned && <PinIcon filled />}
-                          <span>{threadItem.title}</span>
-                        </button>
-                        <div className="thread-nav-actions">
-                          <button
-                            type="button"
-                            className={threadItem.pinned ? "active" : ""}
-                            title={threadItem.pinned ? "Unpin thread" : "Pin thread"}
-                            aria-label={threadItem.pinned ? "Unpin thread" : "Pin thread"}
-                            onClick={() =>
-                              void setThreadPinned({
-                                threadId: threadItem._id,
-                                pinned: !threadItem.pinned,
-                              })
-                            }
-                          >
-                            <PinIcon filled={threadItem.pinned === true} />
-                          </button>
-                          <button
-                            type="button"
-                            title="Archive thread"
-                            aria-label="Archive thread"
-                            onClick={() => {
-                              if (threadId === threadItem._id) setThreadId(null);
-                              void archiveThread({ threadId: threadItem._id });
-                            }}
-                          >
-                            <ArchiveIcon />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  <button className="add-thread" onClick={() => void startThread(item._id)}>
-                    <PlusIcon /> New thread
-                  </button>
-                </div>
+                <SidebarThreadList
+                  deckId={item._id}
+                  activeThreadId={threadId}
+                  generatingTitleId={generatingTitleId}
+                  onSelect={(nextThreadId) => {
+                    setDeckId(item._id);
+                    setThreadId(nextThreadId);
+                  }}
+                  onStart={() => void startThread(item._id)}
+                  onSetPinned={(threadItem) =>
+                    void setThreadPinned({
+                      threadId: threadItem._id,
+                      pinned: !threadItem.pinned,
+                    })
+                  }
+                  onArchive={(nextThreadId) => {
+                    if (threadId === nextThreadId) setThreadId(null);
+                    void archiveThread({ threadId: nextThreadId });
+                  }}
+                  onOpenMenu={(threadItem, x, y) => setThreadMenu({ thread: threadItem, x, y })}
+                />
               )}
             </div>
           ))}

@@ -1,30 +1,51 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "@tanstack/ai-client";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import {
+  CODEX_MODELS,
+  DEFAULT_CODEX_MODEL,
+  isCodexModel,
+  supportsMaxReasoning,
+  type CodexModel,
+  type ReasoningEffort,
+} from "../ai/codex-models";
 import { authClient } from "../lib/auth-client";
+import { useOpenAICodexStatus } from "../lib/openai-codex-client";
 import { usePersistentChat } from "../lib/persistent-chat-client";
 import { ChatMessage } from "./ChatMessage";
 
-const CODEX_MODELS = [
-  { value: "gpt-5.6-sol", label: "5.6 Sol" },
-  { value: "gpt-5.6-terra", label: "5.6 Terra" },
-  { value: "gpt-5.6-luna", label: "5.6 Luna" },
-  { value: "gpt-5.5", label: "5.5" },
-  { value: "gpt-5.4", label: "5.4" },
-  { value: "gpt-5.4-mini", label: "5.4 Mini" },
-  { value: "gpt-5.3-codex-spark", label: "5.3 Codex Spark" },
-] as const;
-
-type CodexModel = (typeof CODEX_MODELS)[number]["value"];
 type ModelChoice = CodexModel | "local";
-type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 type Speed = "standard" | "fast";
 type SelectorPanel = "root" | "model" | "effort" | "speed";
+type ChatMessage = UIMessage<readonly []>;
+
+type MessageSyncItem = {
+  messageId: string;
+  order: number;
+  role: "system" | "user" | "assistant";
+  status: "streaming" | "complete" | "error";
+  serializedPayload: string;
+  searchText?: string;
+};
+
+type PendingMessageSync = {
+  messages: MessageSyncItem[];
+  truncateFromOrder?: number;
+  turnCompleted: boolean;
+};
+
+function messageText(message: ChatMessage) {
+  return message.parts
+    .filter((part) => part.type === "text")
+    .map((part) => part.content)
+    .join("\n")
+    .trim();
+}
 
 function isModelChoice(value: string): value is ModelChoice {
-  return value === "local" || CODEX_MODELS.some((model) => model.value === value);
+  return value === "local" || isCodexModel(value);
 }
 
 const titleCase = (value: string) =>
@@ -35,7 +56,7 @@ function localPreferences() {
     model: ModelChoice;
     reasoningEffort: ReasoningEffort;
     speed: Speed;
-  } = { model: "gpt-5.6-sol", reasoningEffort: "medium", speed: "standard" };
+  } = { model: DEFAULT_CODEX_MODEL, reasoningEffort: "medium", speed: "standard" };
   try {
     const saved = JSON.parse(window.localStorage.getItem("autodekt:model-selection") ?? "{}") as {
       model?: string;
@@ -49,7 +70,8 @@ function localPreferences() {
       saved.effort === "low" ||
       saved.effort === "medium" ||
       saved.effort === "high" ||
-      saved.effort === "xhigh"
+      saved.effort === "xhigh" ||
+      saved.effort === "max"
     ) {
       defaults.reasoningEffort = saved.effort;
     }
@@ -70,7 +92,7 @@ export function DeckChat({
   onOpenDeck: () => void;
 }) {
   const [input, setInput] = useState("");
-  const [modelChoice, setModelChoice] = useState<ModelChoice>("gpt-5.6-sol");
+  const [modelChoice, setModelChoice] = useState<ModelChoice>(DEFAULT_CODEX_MODEL);
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
   const [speed, setSpeed] = useState<Speed>("standard");
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -83,11 +105,36 @@ export function DeckChat({
   const followStreamRef = useRef(true);
   const preferencesHydratedRef = useRef(false);
   const titleRequestedRef = useRef(false);
-  const codexStatus = useQuery(api.openaiCodex.status);
+  const savedMessagesRef = useRef(new Map<string, { order: number; payload: string }>());
+  const pendingSyncRef = useRef<PendingMessageSync | null>(null);
+  const syncRunningRef = useRef(false);
+  const wasLoadingRef = useRef(false);
+  const { status: codexStatus } = useOpenAICodexStatus();
   const accountPreferences = useQuery(api.chatPreferences.get);
-  const persistedMessages = useQuery(api.threads.getMessages, { threadId: thread._id });
-  const saveMessages = useMutation(api.threads.saveMessages);
+  const persistedMessages = usePaginatedQuery(
+    api.threads.listMessages,
+    { threadId: thread._id },
+    { initialNumItems: 40 },
+  );
+  const syncMessages = useMutation(api.threads.syncMessages);
   const savePreferences = useMutation(api.chatPreferences.save);
+
+  const hydratedMessages = useMemo(() => {
+    return [...persistedMessages.results]
+      .reverse()
+      .map((message) => JSON.parse(message.serializedPayload) as ChatMessage);
+  }, [persistedMessages.results]);
+
+  useEffect(() => {
+    for (const message of persistedMessages.results) {
+      if (!savedMessagesRef.current.has(message.messageId)) {
+        savedMessagesRef.current.set(message.messageId, {
+          order: message.order,
+          payload: message.serializedPayload,
+        });
+      }
+    }
+  }, [persistedMessages.results]);
 
   useEffect(() => {
     if (accountPreferences === undefined || preferencesHydratedRef.current) return;
@@ -101,6 +148,14 @@ export function DeckChat({
 
   useEffect(() => {
     if (!preferencesHydratedRef.current) return;
+    if (
+      reasoningEffort === "max" &&
+      modelChoice !== "local" &&
+      !supportsMaxReasoning(modelChoice)
+    ) {
+      setReasoningEffort("xhigh");
+      return;
+    }
     const timer = window.setTimeout(() => {
       window.localStorage.setItem(
         "autodekt:model-selection",
@@ -126,7 +181,7 @@ export function DeckChat({
   const selectedModel = codexStatus?.connected ? modelChoice : "local";
   const chat = usePersistentChat({
     id: String(thread._id),
-    initialMessages: (persistedMessages ?? []) as Array<UIMessage<readonly []>>,
+    initialMessages: hydratedMessages,
     requestOptions: {
       provider: selectedModel === "local" ? "local" : "openai-codex",
       model: selectedModel === "local" ? undefined : selectedModel,
@@ -137,17 +192,77 @@ export function DeckChat({
     },
   });
 
+  const drainMessageSync = useCallback(async () => {
+    if (syncRunningRef.current) return;
+    syncRunningRef.current = true;
+    try {
+      while (pendingSyncRef.current) {
+        const pending = pendingSyncRef.current;
+        pendingSyncRef.current = null;
+        const messages = pending.messages.filter(
+          (message) =>
+            savedMessagesRef.current.get(message.messageId)?.payload !== message.serializedPayload,
+        );
+        let truncateFromOrder = pending.truncateFromOrder;
+        let firstRequest = true;
+        do {
+          const result = await syncMessages({
+            threadId: thread._id,
+            messages: firstRequest ? messages : [],
+            truncateFromOrder,
+            turnCompleted: firstRequest && pending.turnCompleted,
+          });
+          if (truncateFromOrder !== undefined) {
+            for (const [messageId, saved] of savedMessagesRef.current) {
+              if (saved.order >= truncateFromOrder) savedMessagesRef.current.delete(messageId);
+            }
+          }
+          truncateFromOrder = result.truncationComplete ? undefined : pending.truncateFromOrder;
+          firstRequest = false;
+        } while (truncateFromOrder !== undefined);
+        for (const message of messages) {
+          savedMessagesRef.current.set(message.messageId, {
+            order: message.order,
+            payload: message.serializedPayload,
+          });
+        }
+      }
+    } catch (error: unknown) {
+      console.error("Unable to save thread messages", error);
+    } finally {
+      syncRunningRef.current = false;
+      if (pendingSyncRef.current) void drainMessageSync();
+    }
+  }, [syncMessages, thread._id]);
+
   useEffect(() => {
-    if (persistedMessages === undefined || persistedMessages === null) return;
+    if (persistedMessages.status === "LoadingFirstPage") return;
+    const turnCompleted = wasLoadingRef.current && !chat.isLoading;
+    wasLoadingRef.current = chat.isLoading;
     const timer = window.setTimeout(() => {
-      // Convex values are JSON-like; normalize Date instances and omit undefined fields.
-      const messages = chat.messages.map((message) => JSON.stringify(message));
-      void saveMessages({ threadId: thread._id, messages }).catch((error: unknown) => {
-        console.error("Unable to save thread messages", error);
+      const currentIds = new Set(chat.messages.map((message) => message.id));
+      const missingOrders = [...savedMessagesRef.current.entries()]
+        .filter(([messageId]) => !currentIds.has(messageId))
+        .map(([, saved]) => saved.order);
+      const truncateFromOrder = missingOrders.length > 0 ? Math.min(...missingOrders) : undefined;
+      const messages = chat.messages.map((message, order): MessageSyncItem => {
+        const serializedPayload = JSON.stringify(message);
+        const isLast = order === chat.messages.length - 1;
+        return {
+          messageId: message.id,
+          order,
+          role: message.role,
+          status:
+            isLast && chat.isLoading ? "streaming" : isLast && chat.error ? "error" : "complete",
+          serializedPayload,
+          searchText: messageText(message) || undefined,
+        };
       });
+      pendingSyncRef.current = { messages, truncateFromOrder, turnCompleted };
+      void drainMessageSync();
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [chat.messages, persistedMessages, saveMessages, thread._id]);
+  }, [chat.error, chat.isLoading, chat.messages, drainMessageSync, persistedMessages.status]);
 
   useEffect(() => {
     if (!followStreamRef.current) return;
@@ -293,6 +408,11 @@ export function DeckChat({
         }}
       >
         <div className="chat-message-list" ref={messagesContentRef}>
+          {persistedMessages.status === "CanLoadMore" && (
+            <button type="button" onClick={() => persistedMessages.loadMore(40)}>
+              Load older messages
+            </button>
+          )}
           {chat.messages.length === 0 && (
             <div className="chat-empty">
               <p className="eyebrow">{deck.commanderName ?? deck.name}</p>
@@ -515,10 +635,15 @@ export function DeckChat({
                           </>
                         )}
                         {selectorPanel === "effort" &&
-                          (["low", "medium", "high", "xhigh"] as const).map((effort) => (
+                          (["low", "medium", "high", "xhigh", "max"] as const).map((effort) => (
                             <button
                               type="button"
                               key={effort}
+                              disabled={
+                                effort === "max" &&
+                                modelChoice !== "local" &&
+                                !supportsMaxReasoning(modelChoice)
+                              }
                               onClick={() => {
                                 setReasoningEffort(effort);
                                 setSelectorOpen(false);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   queryUsesOracleTags,
+  queryUsesArtTags,
   searchLocalDeck,
   type LocalDeckSearchCard,
 } from "./local-scryfall-query";
@@ -16,6 +17,8 @@ const cards: LocalDeckSearchCard[] = [
     colorIdentity: [],
     oracleId: "sol-ring",
     oracleTags: ["mana-rock", "ramp"],
+    illustrationIds: ["sol-ring-art"],
+    artTags: ["ring", "jewelry"],
     tags: ["Ramp"],
   },
   {
@@ -28,6 +31,8 @@ const cards: LocalDeckSearchCard[] = [
     colorIdentity: ["G"],
     oracleId: "cultivate",
     oracleTags: ["ramp"],
+    illustrationIds: ["cultivate-art"],
+    artTags: ["farmer", "field"],
     tags: [],
   },
   {
@@ -40,6 +45,8 @@ const cards: LocalDeckSearchCard[] = [
     colorIdentity: ["U"],
     oracleId: "rhystic-study",
     oracleTags: ["card-advantage"],
+    illustrationIds: ["rhystic-study-art"],
+    artTags: ["books", "wizard"],
     tags: ["Draw"],
   },
   {
@@ -51,6 +58,8 @@ const cards: LocalDeckSearchCard[] = [
     colorIdentity: ["U"],
     oracleId: "island",
     oracleTags: [],
+    illustrationIds: ["island-art"],
+    artTags: ["island", "ocean"],
     tags: [],
   },
 ];
@@ -130,8 +139,18 @@ describe("searchLocalDeck", () => {
     ]);
   });
 
+  it("supports Scryfall art tags and their arttag alias", () => {
+    expect(searchLocalDeck(cards, "art:books").map((card) => card.name)).toEqual(["Rhystic Study"]);
+    expect(searchLocalDeck(cards, "arttag!=ocean t:land").map((card) => card.name)).toEqual([]);
+  });
+
   it("detects when a query needs the local Oracle-tag index", () => {
     expect(queryUsesOracleTags("(otag:ramp or t:land) -oracletag:draw")).toBe(true);
     expect(queryUsesOracleTags("t:artifact mv<=2")).toBe(false);
+  });
+
+  it("detects when a query needs local art-tag metadata", () => {
+    expect(queryUsesArtTags("(art:dragon or t:land) -arttag:night")).toBe(true);
+    expect(queryUsesArtTags("otag:ramp mv<=2")).toBe(false);
   });
 });

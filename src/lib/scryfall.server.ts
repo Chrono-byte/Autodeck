@@ -188,7 +188,7 @@ export type ScryfallBulkData = {
   content_encoding: string;
 };
 
-export async function getScryfallBulkData(type: "oracle_tags") {
+export async function getScryfallBulkData(type: "art_tags" | "oracle_tags") {
   return scryfallFetch<ScryfallBulkData>(`/bulk-data/${type}`);
 }
 
@@ -223,10 +223,16 @@ async function resolveScryfallCard(name: string) {
 
 export async function getScryfallCard(name: string) {
   const card = await resolveScryfallCard(name);
+  const illustrationIds = [
+    ...(card.illustration_id ? [card.illustration_id] : []),
+    ...(card.card_faces?.flatMap((face) => (face.illustration_id ? [face.illustration_id] : [])) ??
+      []),
+  ];
 
   return {
     name: card.name,
     oracleId: card.oracle_id,
+    illustrationIds: [...new Set(illustrationIds)],
     typeLine: card.type_line,
     oracleText:
       card.oracle_text ??
