@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activeDeckEntries } from "./tools.server";
+import { activeDeckEntries, analyzeDeckInputSchema } from "./tools.server";
+
+describe("analyzeDeckInputSchema", () => {
+  it("treats a null decklist as a request to analyze the live deck", () => {
+    expect(analyzeDeckInputSchema.parse({ decklist: null })).toEqual({ decklist: null });
+    expect(analyzeDeckInputSchema.parse({})).toEqual({});
+  });
+});
 
 describe("activeDeckEntries", () => {
   it("reads the playable active deck while excluding the maybeboard", () => {

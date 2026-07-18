@@ -179,19 +179,21 @@ const deckAnalysisSchema = z.object({
   note: z.string(),
 });
 
+export const analyzeDeckInputSchema = z.object({
+  decklist: z
+    .string()
+    .min(1)
+    .nullish()
+    .describe(
+      "A pasted list with one card per line. Omit this field or pass null to analyze the live active deck.",
+    ),
+});
+
 const analyzeDeckDefinition = toolDefinition({
   name: "analyze_decklist",
   description:
     "Analyze aggregate counts, roles, mana curve, and color balance for a supplied decklist or the live active deck when decklist is omitted.",
-  inputSchema: z.object({
-    decklist: z
-      .string()
-      .min(1)
-      .optional()
-      .describe(
-        "Optional pasted list with one card per line. Omit this field to analyze the live active deck.",
-      ),
-  }),
+  inputSchema: analyzeDeckInputSchema,
   outputSchema: deckAnalysisSchema,
 });
 
