@@ -1,5 +1,25 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { chunkSerializedMessage, restoreSerializedMessages } from "./messageChunks";
+
+function withoutMessageState<T extends { messageState?: unknown }>(thread: T) {
+  const { messageState: _messageState, ...summary } = thread;
+  return summary;
+}
+
+async function storedMessages(
+  ctx: QueryCtx | MutationCtx,
+  threadId: Id<"threads">,
+  legacyMessageState?: unknown,
+) {
+  const chunks = await ctx.db
+    .query("threadMessageChunks")
+    .withIndex("by_thread_message", (q) => q.eq("threadId", threadId))
+    .collect();
+  if (chunks.length > 0) return restoreSerializedMessages(chunks);
+  return Array.isArray(legacyMessageState) ? legacyMessageState : [];
+}
 
 async function ownerId(ctx: {
   auth: { getUserIdentity: () => Promise<{ subject: string } | null> };
@@ -15,12 +35,13 @@ export const listByDeck = query({
     const owner = await ownerId(ctx);
     const deck = await ctx.db.get(deckId);
     if (!deck || deck.ownerId !== owner) return [];
-    return ctx.db
+    const threads = await ctx.db
       .query("threads")
       .withIndex("by_deck_updated", (q) => q.eq("deckId", deckId))
       .order("desc")
       .filter((q) => q.eq(q.field("archived"), false))
       .collect();
+    return threads.map(withoutMessageState);
   },
 });
 
@@ -34,7 +55,7 @@ export const listAll = query({
       .order("desc")
       .filter((q) => q.eq(q.field("archived"), false))
       .collect();
-    return threads.sort((left, right) => {
+    return threads.map(withoutMessageState).sort((left, right) => {
       const pinDifference = Number(right.pinned === true) - Number(left.pinned === true);
       return pinDifference || right.updatedAt - left.updatedAt;
     });
@@ -46,7 +67,21 @@ export const get = query({
   handler: async (ctx, { threadId }) => {
     const owner = await ownerId(ctx);
     const thread = await ctx.db.get(threadId);
-    return thread?.ownerId === owner ? thread : null;
+    if (!thread || thread.ownerId !== owner) return null;
+    return {
+      ...withoutMessageState(thread),
+      messageState: await storedMessages(ctx, threadId, thread.messageState),
+    };
+  },
+});
+
+export const getMessages = query({
+  args: { threadId: v.id("threads") },
+  handler: async (ctx, { threadId }) => {
+    const owner = await ownerId(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.ownerId !== owner) return null;
+    return storedMessages(ctx, threadId, thread.messageState);
   },
 });
 
@@ -70,12 +105,32 @@ export const create = mutation({
 });
 
 export const saveMessages = mutation({
-  args: { threadId: v.id("threads"), messages: v.any() },
+  args: { threadId: v.id("threads"), messages: v.array(v.string()) },
   handler: async (ctx, { threadId, messages }) => {
     const owner = await ownerId(ctx);
     const thread = await ctx.db.get(threadId);
     if (!thread || thread.ownerId !== owner) throw new Error("Thread not found");
-    await ctx.db.patch(threadId, { messageState: messages, updatedAt: Date.now() });
+    const existingChunks = await ctx.db
+      .query("threadMessageChunks")
+      .withIndex("by_thread_message", (q) => q.eq("threadId", threadId))
+      .collect();
+    await Promise.all(existingChunks.map((chunk) => ctx.db.delete(chunk._id)));
+
+    for (const [messageIndex, message] of messages.entries()) {
+      const chunks = chunkSerializedMessage(message);
+      await Promise.all(
+        chunks.map((content, chunkIndex) =>
+          ctx.db.insert("threadMessageChunks", {
+            threadId,
+            messageIndex,
+            chunkIndex,
+            content,
+          }),
+        ),
+      );
+    }
+
+    await ctx.db.patch(threadId, { messageState: undefined, updatedAt: Date.now() });
     await ctx.db.patch(thread.deckId, { updatedAt: Date.now() });
   },
 });

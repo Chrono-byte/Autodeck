@@ -26,6 +26,13 @@ export default defineSchema({
     .index("by_deck_updated", ["deckId", "updatedAt"])
     .index("by_owner_updated", ["ownerId", "updatedAt"]),
 
+  threadMessageChunks: defineTable({
+    threadId: v.id("threads"),
+    messageIndex: v.number(),
+    chunkIndex: v.number(),
+    content: v.string(),
+  }).index("by_thread_message", ["threadId", "messageIndex", "chunkIndex"]),
+
   deckCards: defineTable({
     ownerId: v.string(),
     deckId: v.id("decks"),

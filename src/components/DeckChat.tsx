@@ -85,6 +85,7 @@ export function DeckChat({
   const titleRequestedRef = useRef(false);
   const codexStatus = useQuery(api.openaiCodex.status);
   const accountPreferences = useQuery(api.chatPreferences.get);
+  const persistedMessages = useQuery(api.threads.getMessages, { threadId: thread._id });
   const saveMessages = useMutation(api.threads.saveMessages);
   const savePreferences = useMutation(api.chatPreferences.save);
 
@@ -125,7 +126,7 @@ export function DeckChat({
   const selectedModel = codexStatus?.connected ? modelChoice : "local";
   const chat = usePersistentChat({
     id: String(thread._id),
-    initialMessages: (thread.messageState ?? []) as Array<UIMessage<readonly []>>,
+    initialMessages: (persistedMessages ?? []) as Array<UIMessage<readonly []>>,
     requestOptions: {
       provider: selectedModel === "local" ? "local" : "openai-codex",
       model: selectedModel === "local" ? undefined : selectedModel,
@@ -137,13 +138,16 @@ export function DeckChat({
   });
 
   useEffect(() => {
+    if (persistedMessages === undefined || persistedMessages === null) return;
     const timer = window.setTimeout(() => {
       // Convex values are JSON-like; normalize Date instances and omit undefined fields.
-      const messages = JSON.parse(JSON.stringify(chat.messages)) as unknown[];
-      void saveMessages({ threadId: thread._id, messages });
+      const messages = chat.messages.map((message) => JSON.stringify(message));
+      void saveMessages({ threadId: thread._id, messages }).catch((error: unknown) => {
+        console.error("Unable to save thread messages", error);
+      });
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [chat.messages, saveMessages, thread._id]);
+  }, [chat.messages, persistedMessages, saveMessages, thread._id]);
 
   useEffect(() => {
     if (!followStreamRef.current) return;
