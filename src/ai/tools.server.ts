@@ -273,7 +273,7 @@ export function createAnalyzeDeckTool(
 const searchActiveDeckDefinition = toolDefinition({
   name: "search_active_deck",
   description:
-    "Locally filter the live deck with Scryfall-style syntax. Supports name/n, type/t, oracle/o, identity/id, mv/cmc, otag/oracletag, is, parentheses, OR, and -negation; also supports local zone and decktag filters.",
+    "Filter the live deck entirely from stored local card metadata with Scryfall-style syntax. Supports name/n, type/t, oracle/o, identity/id, mv/cmc, otag/oracletag, is, parentheses, OR, and -negation; also supports local zone and decktag filters. Use quoted text instead of regular expressions.",
   inputSchema: z.object({
     query: z
       .string()
@@ -290,7 +290,6 @@ const searchActiveDeckDefinition = toolDefinition({
     searchedCards: z.number().int().nonnegative(),
     matchedCards: z.number().int().nonnegative(),
     matchedQuantity: z.number().int().nonnegative(),
-    tagCatalogUpdatedAt: z.string().optional(),
     warnings: z.array(z.string()),
     matches: z.array(
       z.object({
@@ -311,52 +310,28 @@ export function createSearchActiveDeckTool(
   readActiveDeck: () => Promise<{ cards: LocalDeckSearchCard[] }>,
 ) {
   return searchActiveDeckDefinition.server(async ({ query, includeMaybeboard }) => {
-    let cards = (await readActiveDeck()).cards.filter(
+    const cards = (await readActiveDeck()).cards.filter(
       (card) => includeMaybeboard === true || card.zone !== "maybeboard",
     );
     const warnings: string[] = [];
-    let tagCatalogUpdatedAt: string | undefined;
-    let oracleTagsById: ReadonlyMap<string, ReadonlySet<string>> | undefined;
 
     if (queryUsesOracleTags(query)) {
-      const entriesByName = new Map<string, DeckEntry>();
-      for (const card of cards) {
-        const key = card.name.toLocaleLowerCase();
-        const existing = entriesByName.get(key);
-        entriesByName.set(key, {
-          name: existing?.name ?? card.name,
-          quantity: (existing?.quantity ?? 0) + card.quantity,
-        });
+      const missingTagMetadata = cards
+        .filter((card) => card.oracleTags === undefined)
+        .map((card) => card.name);
+      if (missingTagMetadata.length > 0) {
+        warnings.push(
+          `Local Oracle-tag metadata is missing for: ${missingTagMetadata.join(", ")}. Re-resolve or re-import these cards to index their tags.`,
+        );
       }
-      const entries = [...entriesByName.values()];
-      const { cards: currentCards, unresolved } = entries.length
-        ? await fetchDeckCards(entries)
-        : { cards: [], unresolved: [] };
-      const currentByName = new Map(
-        currentCards.map((card) => [card.name.toLocaleLowerCase(), card]),
-      );
-      cards = cards.map((card) => ({
-        ...card,
-        oracleId: currentByName.get(card.name.toLocaleLowerCase())?.oracle_id,
-      }));
-      if (unresolved.length > 0) {
-        warnings.push(`Oracle tags could not be resolved for: ${unresolved.join(", ")}.`);
-      }
-      const oracleIds = cards
-        .map((card) => card.oracleId)
-        .filter((oracleId): oracleId is string => oracleId !== undefined);
-      const tagIndex = await scryfallOracleTagCatalog.tagSlugsForOracleIds(oracleIds);
-      tagCatalogUpdatedAt = tagIndex.updatedAt;
-      oracleTagsById = tagIndex.tagsByOracleId;
     }
 
-    const matches = searchLocalDeck(cards, query, { oracleTagsById });
+    const matches = searchLocalDeck(cards, query);
     return {
       query,
       searchedCards: cards.length,
       matchedCards: matches.length,
       matchedQuantity: matches.reduce((total, card) => total + card.quantity, 0),
-      ...(tagCatalogUpdatedAt ? { tagCatalogUpdatedAt } : {}),
       warnings,
       matches,
     };

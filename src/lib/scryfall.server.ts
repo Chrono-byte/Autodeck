@@ -226,6 +226,7 @@ export async function getScryfallCard(name: string) {
 
   return {
     name: card.name,
+    oracleId: card.oracle_id,
     typeLine: card.type_line,
     oracleText:
       card.oracle_text ??

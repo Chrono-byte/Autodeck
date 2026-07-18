@@ -50,6 +50,8 @@ describe("createSearchActiveDeckTool", () => {
           oracleText: "{T}: Add {C}{C}.",
           manaValue: 1,
           colorIdentity: [],
+          oracleId: "sol-ring",
+          oracleTags: ["mana-rock", "ramp"],
           tags: ["Ramp"],
         },
         {
@@ -60,6 +62,8 @@ describe("createSearchActiveDeckTool", () => {
           oracleText: "Counter target spell.",
           manaValue: 2,
           colorIdentity: ["U"],
+          oracleId: "arcane-denial",
+          oracleTags: ["counterspell"],
           tags: [],
         },
       ],
@@ -75,6 +79,74 @@ describe("createSearchActiveDeckTool", () => {
       matchedCards: 1,
       matchedQuantity: 1,
       matches: [expect.objectContaining({ name: "Sol Ring" })],
+    });
+  });
+
+  it("searches stored Oracle tags without resolving cards during execution", async () => {
+    let reads = 0;
+    const tool = createSearchActiveDeckTool(async () => {
+      reads += 1;
+      return {
+        cards: [
+          {
+            name: "Sol Ring",
+            quantity: 1,
+            zone: "main" as const,
+            typeLine: "Artifact",
+            oracleText: "{T}: Add {C}{C}.",
+            manaValue: 1,
+            colorIdentity: [],
+            oracleId: "sol-ring",
+            oracleTags: ["mana-rock", "ramp"],
+            tags: [],
+          },
+          {
+            name: "Worn Powerstone",
+            quantity: 1,
+            zone: "main" as const,
+            typeLine: "Artifact",
+            oracleText: "Worn Powerstone enters tapped.",
+            manaValue: 3,
+            colorIdentity: [],
+            oracleId: "worn-powerstone",
+            oracleTags: ["mana-rock", "ramp"],
+            tags: [],
+          },
+        ],
+      };
+    });
+
+    const result = await tool.execute?.({ query: "otag:mana-rock mv<=2" });
+
+    expect(reads).toBe(1);
+    expect(result).toMatchObject({
+      matchedCards: 1,
+      warnings: [],
+      matches: [expect.objectContaining({ name: "Sol Ring" })],
+    });
+  });
+
+  it("warns when legacy cards have not been locally indexed for Oracle tags", async () => {
+    const tool = createSearchActiveDeckTool(async () => ({
+      cards: [
+        {
+          name: "Sol Ring",
+          quantity: 1,
+          zone: "main" as const,
+          typeLine: "Artifact",
+          oracleText: "{T}: Add {C}{C}.",
+          manaValue: 1,
+          colorIdentity: [],
+          tags: [],
+        },
+      ],
+    }));
+
+    const result = await tool.execute?.({ query: "otag:ramp" });
+
+    expect(result).toMatchObject({
+      matchedCards: 0,
+      warnings: [expect.stringContaining("Local Oracle-tag metadata is missing for: Sol Ring")],
     });
   });
 });

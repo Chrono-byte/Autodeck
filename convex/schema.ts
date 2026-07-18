@@ -37,6 +37,8 @@ export default defineSchema({
     oracleText: v.optional(v.string()),
     manaValue: v.number(),
     colorIdentity: v.array(v.string()),
+    oracleId: v.optional(v.string()),
+    oracleTags: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
     addedBy: v.union(v.literal("user"), v.literal("assistant")),
     createdAt: v.number(),

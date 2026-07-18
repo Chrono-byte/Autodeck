@@ -15,6 +15,7 @@ const cards: LocalDeckSearchCard[] = [
     manaValue: 1,
     colorIdentity: [],
     oracleId: "sol-ring",
+    oracleTags: ["mana-rock", "ramp"],
     tags: ["Ramp"],
   },
   {
@@ -26,6 +27,7 @@ const cards: LocalDeckSearchCard[] = [
     manaValue: 3,
     colorIdentity: ["G"],
     oracleId: "cultivate",
+    oracleTags: ["ramp"],
     tags: [],
   },
   {
@@ -37,6 +39,7 @@ const cards: LocalDeckSearchCard[] = [
     manaValue: 3,
     colorIdentity: ["U"],
     oracleId: "rhystic-study",
+    oracleTags: ["card-advantage"],
     tags: ["Draw"],
   },
   {
@@ -47,6 +50,7 @@ const cards: LocalDeckSearchCard[] = [
     manaValue: 0,
     colorIdentity: ["U"],
     oracleId: "island",
+    oracleTags: [],
     tags: [],
   },
 ];
@@ -72,7 +76,7 @@ describe("searchLocalDeck", () => {
         (card) => card.name,
       ),
     ).toEqual(["Sol Ring", "Rhystic Study"]);
-    expect(searchLocalDeck(cards, "o:/draw a card/").map((card) => card.name)).toEqual([
+    expect(searchLocalDeck(cards, 'o:"draw a card"').map((card) => card.name)).toEqual([
       "Rhystic Study",
     ]);
   });
@@ -99,6 +103,31 @@ describe("searchLocalDeck", () => {
     expect(() => searchLocalDeck(cards, "price<2")).toThrow(
       'Unsupported local Scryfall operator "price"',
     );
+    expect(() => searchLocalDeck([], "price<2")).toThrow(
+      'Unsupported local Scryfall operator "price"',
+    );
+    expect(() => searchLocalDeck(cards, "t:artifact OR price<2")).toThrow(
+      'Unsupported local Scryfall operator "price"',
+    );
+  });
+
+  it("rejects regular expressions and malformed color identities before filtering", () => {
+    expect(() => searchLocalDeck(cards, "o:/(a+)+$/")).toThrow(
+      "Regular expressions are not supported",
+    );
+    expect(() => searchLocalDeck(cards, "id:wxyz")).toThrow('Invalid color identity "wxyz"');
+  });
+
+  it("honors inequality for text, tag, is, and zone predicates", () => {
+    expect(searchLocalDeck(cards, "t!=land").map((card) => card.name)).toEqual([
+      "Sol Ring",
+      "Cultivate",
+      "Rhystic Study",
+    ]);
+    expect(searchLocalDeck(cards, "otag!=ramp").map((card) => card.name)).toEqual([
+      "Rhystic Study",
+      "Island",
+    ]);
   });
 
   it("detects when a query needs the local Oracle-tag index", () => {

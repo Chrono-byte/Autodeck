@@ -15,6 +15,8 @@ type ResolvedCard = {
   oracleText?: string;
   manaValue: number;
   colorIdentity: string[];
+  oracleId?: string;
+  oracleTags?: string[];
 };
 type CardImage = { imageUrl?: string; artCropUrl?: string };
 
@@ -103,12 +105,23 @@ export function DeckEditor({
   const upsert = useMutation(api.deckCards.upsert);
   const remove = useMutation(api.deckCards.remove);
   const updateTags = useMutation(api.deckCards.updateTags);
+  const updateSearchMetadata = useMutation(api.deckCards.updateSearchMetadata);
   const syncCommanderMetadata = useMutation(api.deckCards.syncCommanderMetadata);
 
   const cardNamesKey = useMemo(
     () =>
       cards
         .map((card) => card.name)
+        .sort()
+        .join("\n"),
+    [cards],
+  );
+
+  const missingSearchMetadataKey = useMemo(
+    () =>
+      cards
+        .filter((card) => card.oracleTags === undefined)
+        .map((card) => `${card._id}:${card.name}`)
         .sort()
         .join("\n"),
     [cards],
@@ -136,6 +149,44 @@ export function DeckEditor({
     }
     void syncCommanderMetadata({ deckId: deck._id });
   }, [commanderMetadata, deck._id, deck.commanderName, deck.colorIdentity, syncCommanderMetadata]);
+
+  useEffect(() => {
+    if (!missingSearchMetadataKey) return;
+    const missingCards = cards.filter((card) => card.oracleTags === undefined);
+    const controller = new AbortController();
+    void fetch("/api/cards/collection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decklist: missingCards.map((card) => card.name).join("\n") }),
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Card search metadata lookup failed");
+        return response.json() as Promise<{
+          cards: Array<{ name: string; oracleId?: string; oracleTags?: string[] }>;
+        }>;
+      })
+      .then(async (result) => {
+        const metadataByName = new Map(
+          result.cards.map((card) => [normalizeName(card.name), card] as const),
+        );
+        await Promise.all(
+          missingCards.map(async (card) => {
+            const metadata = metadataByName.get(normalizeName(card.name));
+            if (!metadata?.oracleId) return;
+            await updateSearchMetadata({
+              cardId: card._id,
+              oracleId: metadata.oracleId,
+              oracleTags: metadata.oracleTags ?? [],
+            });
+          }),
+        );
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+    return () => controller.abort();
+  }, [cards, missingSearchMetadataKey, updateSearchMetadata]);
 
   useEffect(() => {
     if (!cards.length) {
@@ -277,6 +328,8 @@ export function DeckEditor({
       oracleText: card.oracleText,
       manaValue: card.manaValue,
       colorIdentity: card.colorIdentity,
+      oracleId: card.oracleId,
+      oracleTags: card.oracleTags,
       tags,
     });
   };
@@ -300,6 +353,8 @@ export function DeckEditor({
       oracleText: card.oracleText,
       manaValue: card.manaValue,
       colorIdentity: card.colorIdentity,
+      oracleId: card.oracleId,
+      oracleTags: card.oracleTags,
       tags: card.tags,
     });
   };

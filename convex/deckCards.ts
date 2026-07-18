@@ -64,6 +64,8 @@ export const upsert = mutation({
     oracleText: v.optional(v.string()),
     manaValue: v.number(),
     colorIdentity: v.array(v.string()),
+    oracleId: v.optional(v.string()),
+    oracleTags: v.optional(v.array(v.string())),
     tags: v.array(v.string()),
     actor: v.union(v.literal("user"), v.literal("assistant")),
   },
@@ -90,6 +92,8 @@ export const upsert = mutation({
       oracleText: args.oracleText,
       manaValue: args.manaValue,
       colorIdentity: args.colorIdentity,
+      oracleId: args.oracleId,
+      oracleTags: args.oracleTags,
       tags: [...new Set(args.tags.map((tag) => tag.trim()).filter(Boolean))],
       addedBy: args.actor,
       updatedAt: now,
@@ -145,6 +149,24 @@ export const updateTags = mutation({
     if (!card || card.ownerId !== owner) throw new Error("Card not found");
     await ctx.db.patch(cardId, {
       tags: [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))],
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+export const updateSearchMetadata = mutation({
+  args: {
+    cardId: v.id("deckCards"),
+    oracleId: v.string(),
+    oracleTags: v.array(v.string()),
+  },
+  handler: async (ctx, { cardId, oracleId, oracleTags }) => {
+    const owner = await ownerId(ctx);
+    const card = await ctx.db.get(cardId);
+    if (!card || card.ownerId !== owner) throw new Error("Card not found");
+    await ctx.db.patch(cardId, {
+      oracleId,
+      oracleTags: [...new Set(oracleTags.map((tag) => tag.trim()).filter(Boolean))],
       updatedAt: Date.now(),
     });
   },

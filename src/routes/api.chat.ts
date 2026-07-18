@@ -25,6 +25,7 @@ import { SYSTEM_PROMPT } from "../ai/system-prompt";
 import { validateAssistantAddition } from "../lib/commander-validation";
 import { editActiveDeckDefinition, getActiveDeckDefinition } from "../ai/deck-tools";
 import { logger } from "../lib/logger.server";
+import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { getScryfallCard } from "../lib/scryfall.server";
 
 const CODEX_MODELS = new Set([
@@ -186,7 +187,7 @@ export const Route = createFileRoute("/api/chat")({
               colorIdentity: deck.colorIdentity,
             },
             cards: cards.map(
-              ({ name, quantity, zone, typeLine, oracleText, manaValue, colorIdentity, tags }) => ({
+              ({
                 name,
                 quantity,
                 zone,
@@ -194,6 +195,19 @@ export const Route = createFileRoute("/api/chat")({
                 oracleText,
                 manaValue,
                 colorIdentity,
+                oracleId,
+                oracleTags,
+                tags,
+              }) => ({
+                name,
+                quantity,
+                zone,
+                typeLine,
+                oracleText,
+                manaValue,
+                colorIdentity,
+                oracleId,
+                oracleTags,
                 tags,
               }),
             ),
@@ -240,6 +254,8 @@ export const Route = createFileRoute("/api/chat")({
             };
           }
           const resolved = await getScryfallCard(edit.cardName);
+          const tagIndex = await scryfallOracleTagCatalog.tagSlugsForOracleIds([resolved.oracleId]);
+          const oracleTags = [...(tagIndex.tagsByOracleId.get(resolved.oracleId) ?? [])];
           const activeDeck = await readActiveDeck();
           const validationErrors = validateAssistantAddition(
             resolved,
@@ -261,6 +277,8 @@ export const Route = createFileRoute("/api/chat")({
             oracleText: resolved.oracleText,
             manaValue: resolved.manaValue,
             colorIdentity: resolved.colorIdentity,
+            oracleId: resolved.oracleId,
+            oracleTags,
             tags: edit.tags ?? [],
           });
           const playableCardCount = (await readActiveDeck()).cards

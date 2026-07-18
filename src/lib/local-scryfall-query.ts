@@ -9,6 +9,7 @@ export type LocalDeckSearchCard = {
   manaValue: number;
   colorIdentity: string[];
   oracleId?: string;
+  oracleTags?: string[];
   tags: string[];
 };
 
@@ -34,6 +35,16 @@ const SUPPORTED_OPERATORS = [
   "zone",
   "decktag",
 ].join(", ");
+
+const SUPPORTED_IS_VALUES = new Set([
+  "commander",
+  "land",
+  "creature",
+  "permanent",
+  "spell",
+  "multicolored",
+  "colorless",
+]);
 
 function tokenize(query: string) {
   const tokens: Token[] = [];
@@ -161,13 +172,6 @@ function unquote(value: string) {
 
 function matchesText(haystack: string | undefined, needle: string) {
   if (!haystack) return false;
-  if (needle.startsWith("/") && needle.endsWith("/") && needle.length > 2) {
-    try {
-      return new RegExp(needle.slice(1, -1), "i").test(haystack);
-    } catch {
-      throw new Error(`Invalid regular expression "${needle}".`);
-    }
-  }
   return haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase());
 }
 
@@ -185,9 +189,8 @@ function compareNumber(actual: number, operator: string, rawExpected: string) {
 function colorSet(value: string) {
   const normalized = value.toUpperCase();
   if (/^(?:C|COLORLESS)$/.test(normalized)) return new Set<string>();
-  const colors = [...normalized].filter((color) => "WUBRG".includes(color));
-  if (colors.length === 0) throw new Error(`Invalid color identity "${value}".`);
-  return new Set(colors);
+  if (!/^[WUBRG]+$/.test(normalized)) throw new Error(`Invalid color identity "${value}".`);
+  return new Set(normalized);
 }
 
 function compareIdentity(actualColors: string[], operator: string, rawExpected: string) {
@@ -216,24 +219,111 @@ function isPredicate(card: LocalDeckSearchCard, value: string) {
   throw new Error(`Unsupported local is: value "${value}".`);
 }
 
+function predicateParts(rawPredicate: string) {
+  if (rawPredicate.startsWith('!"') && rawPredicate.endsWith('"')) {
+    return { operatorName: "exact-name", operator: "=", value: unquote(rawPredicate.slice(1)) };
+  }
+
+  const match = rawPredicate.match(/^([a-z]+)(<=|>=|!=|:|=|<|>)(.+)$/i);
+  if (!match) return { operatorName: "name", operator: ":", value: unquote(rawPredicate) };
+  const [, rawOperatorName, operator, rawValue] = match;
+  return {
+    operatorName: rawOperatorName.toLocaleLowerCase(),
+    operator,
+    value: unquote(rawValue).toLocaleLowerCase(),
+  };
+}
+
+function requireOperator(operatorName: string, operator: string, allowed: string[]) {
+  if (allowed.includes(operator)) return;
+  throw new Error(
+    `Unsupported ${operatorName} operator "${operator}". Supported comparisons: ${allowed.join(", ")}.`,
+  );
+}
+
+function validatePredicate(rawPredicate: string) {
+  const { operatorName, operator, value } = predicateParts(rawPredicate);
+  if (value.startsWith("/") && value.endsWith("/")) {
+    throw new Error(
+      "Regular expressions are not supported by local deck search; use text or a quoted phrase.",
+    );
+  }
+  if (operatorName === "exact-name") return;
+  if (["name", "n", "type", "t", "oracle", "o"].includes(operatorName)) {
+    requireOperator(operatorName, operator, [":", "=", "!="]);
+    return;
+  }
+  if (["mv", "cmc"].includes(operatorName)) {
+    compareNumber(0, operator, value);
+    return;
+  }
+  if (["identity", "id"].includes(operatorName)) {
+    colorSet(value);
+    return;
+  }
+  if (operatorName === "commander") {
+    requireOperator(operatorName, operator, [":", "=", "!="]);
+    colorSet(value);
+    return;
+  }
+  if (["otag", "oracletag", "decktag"].includes(operatorName)) {
+    requireOperator(operatorName, operator, [":", "=", "!="]);
+    return;
+  }
+  if (operatorName === "is") {
+    requireOperator(operatorName, operator, [":", "=", "!="]);
+    if (!SUPPORTED_IS_VALUES.has(value)) {
+      throw new Error(`Unsupported local is: value "${value}".`);
+    }
+    return;
+  }
+  if (operatorName === "zone") {
+    requireOperator(operatorName, operator, [":", "=", "!="]);
+    if (!(["commander", "main", "maybeboard"] as string[]).includes(value)) {
+      throw new Error(`Unsupported local zone: value "${value}".`);
+    }
+    return;
+  }
+  throw new Error(
+    `Unsupported local Scryfall operator "${operatorName}". Supported operators: ${SUPPORTED_OPERATORS}.`,
+  );
+}
+
+function validateQuery(node: QueryNode): void {
+  if (node.type === "predicate") {
+    validatePredicate(node.value);
+    return;
+  }
+  if (node.type === "not") {
+    validateQuery(node.child);
+    return;
+  }
+  for (const child of node.children) validateQuery(child);
+}
+
+function equalityResult(matches: boolean, operator: string) {
+  return operator === "!=" ? !matches : matches;
+}
+
 function matchesPredicate(
   card: LocalDeckSearchCard,
   rawPredicate: string,
   context: LocalScryfallQueryContext,
 ) {
-  if (rawPredicate.startsWith('!"') && rawPredicate.endsWith('"')) {
-    return card.name.toLocaleLowerCase() === unquote(rawPredicate.slice(1)).toLocaleLowerCase();
+  const { operatorName, operator, value } = predicateParts(rawPredicate);
+
+  if (operatorName === "exact-name") {
+    return card.name.toLocaleLowerCase() === value.toLocaleLowerCase();
   }
-
-  const match = rawPredicate.match(/^([a-z]+)(<=|>=|!=|:|=|<|>)(.+)$/i);
-  if (!match) return matchesText(card.name, unquote(rawPredicate));
-  const [, rawOperatorName, operator, rawValue] = match;
-  const operatorName = rawOperatorName.toLocaleLowerCase();
-  const value = unquote(rawValue).toLocaleLowerCase();
-
-  if (operatorName === "name" || operatorName === "n") return matchesText(card.name, value);
-  if (operatorName === "type" || operatorName === "t") return matchesText(card.typeLine, value);
-  if (operatorName === "oracle" || operatorName === "o") return matchesText(card.oracleText, value);
+  if (operatorName === "name" || operatorName === "n") {
+    return equalityResult(matchesText(card.name, value), operator);
+  }
+  if (operatorName === "type" || operatorName === "t") {
+    return equalityResult(matchesText(card.typeLine, value), operator);
+  }
+  if (operatorName === "oracle" || operatorName === "o") {
+    return equalityResult(matchesText(card.oracleText, value), operator);
+  }
   if (operatorName === "mv" || operatorName === "cmc") {
     return compareNumber(card.manaValue, operator, value);
   }
@@ -244,13 +334,19 @@ function matchesPredicate(
     return compareIdentity(card.colorIdentity, operator === "!=" ? "!=" : "<=", value);
   }
   if (operatorName === "otag" || operatorName === "oracletag") {
-    if (!card.oracleId) return false;
-    return context.oracleTagsById?.get(card.oracleId)?.has(value) ?? false;
+    const storedMatch = card.oracleTags?.some((tag) => tag.toLocaleLowerCase() === value) ?? false;
+    const indexedMatch = card.oracleId
+      ? (context.oracleTagsById?.get(card.oracleId)?.has(value) ?? false)
+      : false;
+    return equalityResult(storedMatch || indexedMatch, operator);
   }
-  if (operatorName === "is") return isPredicate(card, value);
-  if (operatorName === "zone") return card.zone === value;
+  if (operatorName === "is") return equalityResult(isPredicate(card, value), operator);
+  if (operatorName === "zone") return equalityResult(card.zone === value, operator);
   if (operatorName === "decktag") {
-    return card.tags.some((tag) => tag.toLocaleLowerCase() === value);
+    return equalityResult(
+      card.tags.some((tag) => tag.toLocaleLowerCase() === value),
+      operator,
+    );
   }
   throw new Error(
     `Unsupported local Scryfall operator "${operatorName}". Supported operators: ${SUPPORTED_OPERATORS}.`,
@@ -278,5 +374,6 @@ export function searchLocalDeck(
   context: LocalScryfallQueryContext = {},
 ) {
   const root = new QueryParser(tokenize(query)).parse();
+  validateQuery(root);
   return cards.filter((card) => evaluate(root, card, context));
 }
