@@ -24,7 +24,7 @@ describe("formatMtgoDeck", () => {
 
 describe("mtgoExportFilename", () => {
   it("creates a safe text filename", () => {
-    expect(mtgoExportFilename('Alela: Artifacts / Faeries?')).toBe(
+    expect(mtgoExportFilename("Alela: Artifacts / Faeries?")).toBe(
       "Alela- Artifacts - Faeries-mtgo.txt",
     );
     expect(mtgoExportFilename("  ")).toBe("deck-mtgo.txt");
