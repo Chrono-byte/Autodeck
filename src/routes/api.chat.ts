@@ -11,10 +11,12 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import {
-  analyzeDeckTool,
   braveSearchTool,
   comprehensiveRulesTool,
+  createAnalyzeDeckTool,
+  getCardOracleTagsTool,
   getCardTool,
+  searchOracleTagsTool,
   searchCardsTool,
 } from "../ai/tools.server";
 import { SYSTEM_PROMPT } from "../ai/system-prompt";
@@ -199,6 +201,7 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const getActiveDeckTool = getActiveDeckDefinition.server(readActiveDeck);
+        const analyzeDeckTool = createAnalyzeDeckTool(readActiveDeck);
         const editActiveDeckTool = editActiveDeckDefinition.server(async (edit) => {
           if (edit.action === "remove") {
             const storedCards = await convex.query(api.deckCards.list, { deckId });
@@ -319,6 +322,8 @@ export const Route = createFileRoute("/api/chat")({
             }),
             tools: [
               getCardTool,
+              getCardOracleTagsTool,
+              searchOracleTagsTool,
               searchCardsTool,
               analyzeDeckTool,
               comprehensiveRulesTool,

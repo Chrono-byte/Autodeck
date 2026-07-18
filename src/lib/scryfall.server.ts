@@ -1,7 +1,7 @@
 import type { DeckEntry, ScryfallCard } from "./deck-analysis";
 
 const SCRYFALL = "https://api.scryfall.com";
-const APP_HEADERS = {
+export const SCRYFALL_APP_HEADERS = {
   Accept: "application/json;q=0.9,*/*;q=0.8",
   "User-Agent": "Autodekt/0.1 (Commander deck research tool)",
 };
@@ -112,7 +112,7 @@ export class ScryfallClient {
       try {
         response = await this.fetcher(`${SCRYFALL}${path}`, {
           ...init,
-          headers: { ...APP_HEADERS, ...init?.headers },
+          headers: { ...SCRYFALL_APP_HEADERS, ...init?.headers },
         });
       } catch (error) {
         if (attempt < 2) {
@@ -175,6 +175,23 @@ async function scryfallFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return scryfallClient.request<T>(path, init);
 }
 
+export type ScryfallBulkData = {
+  object: "bulk_data";
+  id: string;
+  type: string;
+  updated_at: string;
+  name: string;
+  description: string;
+  size: number;
+  download_uri: string;
+  content_type: string;
+  content_encoding: string;
+};
+
+export async function getScryfallBulkData(type: "oracle_tags") {
+  return scryfallFetch<ScryfallBulkData>(`/bulk-data/${type}`);
+}
+
 export async function searchScryfall(query: string, limit = 12) {
   const result = await scryfallFetch<{ data: Array<ScryfallCard & { scryfall_uri: string }> }>(
     `/cards/search?q=${encodeURIComponent(query)}&order=edhrec`,
@@ -194,13 +211,18 @@ export async function searchScryfall(query: string, limit = 12) {
   }));
 }
 
-export async function getScryfallCard(name: string) {
-  const card = await scryfallFetch<
+async function resolveScryfallCard(name: string) {
+  return scryfallFetch<
     ScryfallCard & {
+      oracle_id: string;
       scryfall_uri: string;
       legalities: Record<string, string>;
     }
   >(`/cards/named?fuzzy=${encodeURIComponent(name)}`);
+}
+
+export async function getScryfallCard(name: string) {
+  const card = await resolveScryfallCard(name);
 
   return {
     name: card.name,
@@ -213,6 +235,11 @@ export async function getScryfallCard(name: string) {
     commanderLegality: card.legalities.commander ?? "unknown",
     url: card.scryfall_uri,
   };
+}
+
+export async function getScryfallOracleIdentity(name: string) {
+  const card = await resolveScryfallCard(name);
+  return { name: card.name, oracleId: card.oracle_id };
 }
 
 export async function fetchDeckCards(entries: DeckEntry[]) {

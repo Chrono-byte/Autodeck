@@ -1,8 +1,9 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import { parseDecklist, summarizeDeck } from "../lib/deck-analysis";
+import { parseDecklist, summarizeDeck, type DeckEntry } from "../lib/deck-analysis";
 import { searchBraveWeb } from "../lib/brave-search.server";
 import { lookupComprehensiveRules } from "../lib/mtg-rules.server";
+import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { fetchDeckCards, getScryfallCard, searchScryfall } from "../lib/scryfall.server";
 
 const cardResultSchema = z.object({
@@ -52,6 +53,70 @@ const searchCardsDefinition = toolDefinition({
 
 export const searchCardsTool = searchCardsDefinition.server(async ({ query, limit }) =>
   searchScryfall(query, limit),
+);
+
+const oracleTagSummarySchema = z.object({
+  label: z.string(),
+  slug: z.string(),
+});
+
+const searchOracleTagsDefinition = toolDefinition({
+  name: "search_oracle_tags",
+  description:
+    "Discover Scryfall Tagger Oracle tags by gameplay concept. Returns current community-curated tag definitions, aliases, hierarchy, card counts, and a ready-to-use otag search query. Use this when you know the role or synergy you want but do not know the correct Scryfall tag. Then pass a returned searchQuery, optionally with other Scryfall filters, to search_cards.",
+  inputSchema: z.object({
+    query: z
+      .string()
+      .min(1)
+      .max(120)
+      .describe("A concise gameplay concept such as repeatable card draw or sacrifice outlet."),
+    limit: z.number().int().min(1).max(15).default(8),
+  }),
+  outputSchema: z.object({
+    updatedAt: z.string(),
+    matches: z.array(
+      oracleTagSummarySchema.extend({
+        description: z.string().optional(),
+        aliases: z.array(z.string()),
+        parents: z.array(oracleTagSummarySchema),
+        children: z.array(oracleTagSummarySchema),
+        directCardCount: z.number().int().nonnegative(),
+        cardCount: z.number().int().nonnegative(),
+        searchQuery: z.string(),
+        taggerUrl: z.string().url(),
+      }),
+    ),
+  }),
+});
+
+export const searchOracleTagsTool = searchOracleTagsDefinition.server(async ({ query, limit }) =>
+  scryfallOracleTagCatalog.search(query, limit),
+);
+
+const getCardOracleTagsDefinition = toolDefinition({
+  name: "get_card_oracle_tags",
+  description:
+    "Look up the current Scryfall Tagger Oracle tags associated with one named card. Direct tags were assigned to that card; inherited tags are its broader parent categories. Use this to understand a card's community-classified roles or to discover tags for finding similar cards. Tags are discovery metadata, not authoritative card text or rules.",
+  inputSchema: z.object({
+    name: z.string().min(1).describe("The printed card name; fuzzy matching is supported."),
+    limit: z.number().int().min(1).max(60).default(40),
+  }),
+  outputSchema: z.object({
+    updatedAt: z.string(),
+    cardName: z.string(),
+    tags: z.array(
+      oracleTagSummarySchema.extend({
+        description: z.string().optional(),
+        relationship: z.enum(["direct", "inherited"]),
+        searchQuery: z.string(),
+        taggerUrl: z.string().url(),
+      }),
+    ),
+  }),
+});
+
+export const getCardOracleTagsTool = getCardOracleTagsDefinition.server(async ({ name, limit }) =>
+  scryfallOracleTagCatalog.tagsForCard(name, limit),
 );
 
 const colorBalanceEntrySchema = z.object({
@@ -117,20 +182,58 @@ const deckAnalysisSchema = z.object({
 const analyzeDeckDefinition = toolDefinition({
   name: "analyze_decklist",
   description:
-    "Parse and analyze a Commander decklist using current Scryfall card data. Counts functional roles, returns a quantity-weighted mana curve and average mana value excluding pure lands, and identifies unresolved card names. Spell/land modal cards appear in both the land count and mana curve. Role counts can overlap.",
+    "Analyze the active Commander deck, or parse a supplied decklist, using current Scryfall card data. Omit decklist to read the live active deck. Counts functional roles, returns a quantity-weighted mana curve and average mana value excluding pure lands, and identifies unresolved card names. Spell/land modal cards appear in both the land count and mana curve. Role counts can overlap.",
   inputSchema: z.object({
-    decklist: z.string().min(1).describe("One card per line, optionally prefixed with a quantity."),
+    decklist: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional pasted list with one card per line. Omit this field to analyze the live active deck.",
+      ),
   }),
   outputSchema: deckAnalysisSchema,
 });
 
-export const analyzeDeckTool = analyzeDeckDefinition.server(async ({ decklist }) => {
-  const entries = parseDecklist(decklist);
-  if (entries.length === 0) throw new Error("No card names were found in the decklist.");
-  if (entries.length > 110) throw new Error("Decklist contains more than 110 unique entries.");
-  const { cards, unresolved } = await fetchDeckCards(entries);
-  return summarizeDeck(entries, cards, unresolved);
-});
+type ActiveDeckAnalysisCard = {
+  name: string;
+  quantity: number;
+  zone: "commander" | "main" | "maybeboard";
+};
+
+export function activeDeckEntries(cards: ActiveDeckAnalysisCard[]): DeckEntry[] {
+  const entries = new Map<string, DeckEntry>();
+  for (const card of cards) {
+    if (card.zone === "maybeboard") continue;
+    const key = card.name.toLocaleLowerCase();
+    const existing = entries.get(key);
+    entries.set(key, {
+      name: existing?.name ?? card.name,
+      quantity: (existing?.quantity ?? 0) + card.quantity,
+    });
+  }
+  return [...entries.values()];
+}
+
+export function createAnalyzeDeckTool(
+  readActiveDeck: () => Promise<{ cards: ActiveDeckAnalysisCard[] }>,
+) {
+  return analyzeDeckDefinition.server(async ({ decklist }) => {
+    const entries = decklist
+      ? parseDecklist(decklist)
+      : activeDeckEntries((await readActiveDeck()).cards);
+    if (entries.length === 0) {
+      throw new Error(
+        decklist
+          ? "No card names were found in the decklist."
+          : "No cards were found in the active deck.",
+      );
+    }
+    if (entries.length > 110) throw new Error("Decklist contains more than 110 unique entries.");
+    const { cards, unresolved } = await fetchDeckCards(entries);
+    return summarizeDeck(entries, cards, unresolved);
+  });
+}
 
 const comprehensiveRulesDefinition = toolDefinition({
   name: "lookup_comprehensive_rules",

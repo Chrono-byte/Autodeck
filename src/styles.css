@@ -902,7 +902,10 @@
     @apply py-1.5;
   }
   .deck-toolbar .text-button {
-    @apply ml-auto shrink-0 text-accent;
+    @apply shrink-0 text-accent;
+  }
+  .deck-toolbar label + .text-button {
+    @apply ml-auto;
   }
 
   .deck-titlebar {

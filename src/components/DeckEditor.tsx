@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { formatMtgoDeck, mtgoExportFilename } from "../lib/mtgo-export";
 import { ManaSymbol } from "./ManaSymbol";
 
 type GroupMode = "tag" | "type" | "color" | "mana" | "zone";
@@ -347,6 +348,29 @@ export function DeckEditor({
     }
   };
 
+  const exportMtgo = () => {
+    const exportedCards = cards.filter((card) => card.zone !== "maybeboard");
+    if (!exportedCards.length) return;
+
+    const filename = mtgoExportFilename(deck.name);
+    const blob = new Blob([formatMtgoDeck(exportedCards)], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    const omitted = cards.filter((card) => card.zone === "maybeboard").length;
+    setNotice(
+      omitted
+        ? `Exported ${filename}. Maybeboard cards were omitted because MTGO does not support that zone.`
+        : `Exported ${filename}.`,
+    );
+  };
+
   const deckTotal = cards
     .filter((card) => card.zone !== "maybeboard")
     .reduce((sum, card) => sum + card.quantity, 0);
@@ -481,6 +505,15 @@ export function DeckEditor({
             aria-expanded={importing}
           >
             {importing ? "Close import" : "Import"}
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={exportMtgo}
+            disabled={!cards.some((card) => card.zone !== "maybeboard")}
+            title="Download a Magic Online-compatible text decklist"
+          >
+            Export MTGO
           </button>
         </div>
       </div>
