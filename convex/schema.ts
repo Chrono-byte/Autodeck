@@ -84,6 +84,7 @@ export default defineSchema({
       v.literal("xhigh"),
     ),
     speed: v.union(v.literal("standard"), v.literal("fast")),
+    titleModel: v.optional(v.string()),
     updatedAt: v.number(),
   }).index("by_owner", ["ownerId"]),
 });

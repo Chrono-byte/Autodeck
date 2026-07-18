@@ -41,6 +41,15 @@ export const listAll = query({
   },
 });
 
+export const get = query({
+  args: { threadId: v.id("threads") },
+  handler: async (ctx, { threadId }) => {
+    const owner = await ownerId(ctx);
+    const thread = await ctx.db.get(threadId);
+    return thread?.ownerId === owner ? thread : null;
+  },
+});
+
 export const create = mutation({
   args: { deckId: v.id("decks"), title: v.optional(v.string()) },
   handler: async (ctx, { deckId, title }) => {
@@ -81,6 +90,21 @@ export const rename = mutation({
       title: title.trim() || "Untitled thread",
       updatedAt: Date.now(),
     });
+  },
+});
+
+export const renameIfUntitled = mutation({
+  args: { threadId: v.id("threads"), title: v.string() },
+  handler: async (ctx, { threadId, title }) => {
+    const owner = await ownerId(ctx);
+    const thread = await ctx.db.get(threadId);
+    if (!thread || thread.ownerId !== owner) throw new Error("Thread not found");
+    if (thread.title !== "New thread" && thread.title !== "Deck study") return false;
+    await ctx.db.patch(threadId, {
+      title: title.trim() || "Untitled thread",
+      updatedAt: Date.now(),
+    });
+    return true;
   },
 });
 

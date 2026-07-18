@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
 import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
+import { authClient } from "../lib/auth-client";
 import { AuthScreen } from "./AuthScreen";
 import { DeckChat } from "./DeckChat";
 import { DeckEditor } from "./DeckEditor";
@@ -80,12 +81,41 @@ function AuthenticatedWorkspace() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [chatSplit, setChatSplit] = useState(42);
   const [resizingWorkspace, setResizingWorkspace] = useState(false);
+  const [deckPanelOpen, setDeckPanelOpen] = useState(false);
+  const [deckEditorCollapsed, setDeckEditorCollapsed] = useState(false);
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(() => new Set());
+  const [threadMenu, setThreadMenu] = useState<{
+    thread: Doc<"threads">;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [generatingTitleId, setGeneratingTitleId] = useState<Id<"threads"> | null>(null);
   const workspaceColumnsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!threadMenu) return;
+    const close = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".thread-context-menu")) return;
+      setThreadMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setThreadMenu(null);
+    };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [threadMenu]);
 
   useEffect(() => {
     const saved = Number(window.localStorage.getItem("autodekt:workspace-chat-split"));
     if (Number.isFinite(saved) && saved >= 20 && saved <= 80) setChatSplit(saved);
+    setDeckEditorCollapsed(
+      window.localStorage.getItem("autodekt:deck-editor-collapsed") === "true",
+    );
   }, []);
 
   useEffect(() => {
@@ -160,13 +190,36 @@ function AuthenticatedWorkspace() {
     setChatSplit(Math.round(nextSplit * 10) / 10);
   };
 
+  const regenerateThreadTitle = async (targetThreadId: Id<"threads">) => {
+    setGeneratingTitleId(targetThreadId);
+    try {
+      const { data, error } = await authClient.convex.token();
+      if (error || !data?.token) return;
+      await fetch("/api/thread-title", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${data.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ threadId: targetThreadId, force: true }),
+      });
+    } catch {
+      // Keep the existing title when the configured generation model is unavailable.
+    } finally {
+      setGeneratingTitleId(null);
+      setThreadMenu(null);
+    }
+  };
+
   const splitStyle: CSSProperties & Record<`--${string}`, string> = {
     "--chat-share": `${chatSplit}fr`,
     "--deck-share": `${100 - chatSplit}fr`,
   };
 
   return (
-    <main className={`workspace-app ${sidebarOpen ? "" : "sidebar-collapsed"}`}>
+    <main
+      className={`workspace-app ${sidebarOpen ? "" : "sidebar-collapsed"} ${deckPanelOpen ? "deck-panel-open" : ""}`}
+    >
       <aside className="app-sidebar">
         <header className="sidebar-brand">
           <div className="brand-mark">A</div>
@@ -236,6 +289,14 @@ function AuthenticatedWorkspace() {
                       <div
                         className={`thread-nav-row ${threadItem._id === threadId ? "active" : ""}`}
                         key={threadItem._id}
+                        onContextMenu={(event) => {
+                          event.preventDefault();
+                          setThreadMenu({
+                            thread: threadItem,
+                            x: Math.max(8, Math.min(event.clientX, window.innerWidth - 210)),
+                            y: Math.max(8, Math.min(event.clientY, window.innerHeight - 190)),
+                          });
+                        }}
                       >
                         <button
                           type="button"
@@ -245,6 +306,17 @@ function AuthenticatedWorkspace() {
                             setDeckId(item._id);
                             setThreadId(threadItem._id);
                           }}
+                          onKeyDown={(event) => {
+                            if (!(event.shiftKey && event.key === "F10")) return;
+                            event.preventDefault();
+                            const bounds = event.currentTarget.getBoundingClientRect();
+                            setThreadMenu({
+                              thread: threadItem,
+                              x: Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 210)),
+                              y: Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 190)),
+                            });
+                          }}
+                          aria-haspopup="menu"
                         >
                           {threadItem.pinned && <PinIcon filled />}
                           <span>{threadItem.title}</span>
@@ -298,6 +370,60 @@ function AuthenticatedWorkspace() {
           </Link>
         </footer>
       </aside>
+      {threadMenu && (
+        <div
+          className="thread-context-menu"
+          role="menu"
+          aria-label={`Actions for ${threadMenu.thread.title}`}
+          style={{ left: threadMenu.x, top: threadMenu.y }}
+        >
+          <p>{threadMenu.thread.title}</p>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={generatingTitleId === threadMenu.thread._id}
+            onClick={() => void regenerateThreadTitle(threadMenu.thread._id)}
+          >
+            {generatingTitleId === threadMenu.thread._id ? "Generating title…" : "Regenerate title"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void setThreadPinned({
+                threadId: threadMenu.thread._id,
+                pinned: threadMenu.thread.pinned !== true,
+              });
+              setThreadMenu(null);
+            }}
+          >
+            {threadMenu.thread.pinned ? "Unpin thread" : "Pin thread"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void startThread(threadMenu.thread.deckId);
+              setThreadMenu(null);
+            }}
+          >
+            New thread in deck
+          </button>
+          <div className="thread-context-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            onClick={() => {
+              if (threadId === threadMenu.thread._id) setThreadId(null);
+              void archiveThread({ threadId: threadMenu.thread._id });
+              setThreadMenu(null);
+            }}
+          >
+            Archive thread
+          </button>
+        </div>
+      )}
       {!sidebarOpen && (
         <button className="open-sidebar" onClick={() => setSidebarOpen(true)}>
           ☰
@@ -305,11 +431,20 @@ function AuthenticatedWorkspace() {
       )}
       {deck && thread && cards ? (
         <div
-          className={`workspace-columns ${resizingWorkspace ? "resizing" : ""}`}
+          className={`workspace-columns ${resizingWorkspace ? "resizing" : ""} ${deckEditorCollapsed ? "deck-collapsed" : ""}`}
           ref={workspaceColumnsRef}
           style={splitStyle}
         >
-          <DeckChat key={thread._id} deck={deck} thread={thread} />
+          <DeckChat
+            key={thread._id}
+            deck={deck}
+            thread={thread}
+            onOpenDeck={() => {
+              setDeckEditorCollapsed(false);
+              window.localStorage.setItem("autodekt:deck-editor-collapsed", "false");
+              setDeckPanelOpen(true);
+            }}
+          />
           <div
             className="workspace-resizer"
             role="separator"
@@ -350,13 +485,22 @@ function AuthenticatedWorkspace() {
           >
             <span aria-hidden="true" />
           </div>
-          <DeckEditor deck={deck} thread={thread} cards={cards} />
+          <DeckEditor
+            deck={deck}
+            thread={thread}
+            cards={cards}
+            onClose={() => {
+              setDeckEditorCollapsed(true);
+              window.localStorage.setItem("autodekt:deck-editor-collapsed", "true");
+              setDeckPanelOpen(false);
+            }}
+          />
         </div>
       ) : (
         <section className="workspace-empty">
           <div className="empty-orbit">A</div>
-          <h1>{decks === undefined ? "Loading your decks…" : "Start a new Commander deck"}</h1>
-          <p>Each deck gets its own conversations and one shared, live card list.</p>
+          <h1>{decks === undefined ? "Loading decks…" : "No decks yet"}</h1>
+          <p>Create a deck to start building and discussing a list.</p>
           {decks?.length === 0 && (
             <button className="primary-button" onClick={() => setCreatingDeck(true)}>
               Create your first deck

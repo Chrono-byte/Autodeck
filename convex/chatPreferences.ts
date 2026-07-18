@@ -42,6 +42,7 @@ export const get = query({
       model: preferences.model,
       reasoningEffort: preferences.reasoningEffort,
       speed: preferences.speed,
+      titleModel: preferences.titleModel ?? "gpt-5.4-mini",
     };
   },
 });
@@ -60,5 +61,29 @@ export const save = mutation({
       return existing._id;
     }
     return ctx.db.insert("chatPreferences", value);
+  },
+});
+
+export const saveTitleModel = mutation({
+  args: { titleModel: v.string() },
+  handler: async (ctx, { titleModel }) => {
+    const owner = await ownerId(ctx);
+    const normalized = titleModel.trim() || "local";
+    const existing = await ctx.db
+      .query("chatPreferences")
+      .withIndex("by_owner", (q) => q.eq("ownerId", owner))
+      .unique();
+    if (existing) {
+      await ctx.db.patch(existing._id, { titleModel: normalized, updatedAt: Date.now() });
+      return existing._id;
+    }
+    return ctx.db.insert("chatPreferences", {
+      ownerId: owner,
+      model: "gpt-5.6-sol",
+      reasoningEffort: "medium",
+      speed: "standard",
+      titleModel: normalized,
+      updatedAt: Date.now(),
+    });
   },
 });

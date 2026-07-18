@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiThreadTitleRouteImport } from './routes/api.thread-title'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiCardsResolveRouteImport } from './routes/api.cards.resolve'
 import { Route as ApiCardsImagesRouteImport } from './routes/api.cards.images'
@@ -24,6 +25,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiThreadTitleRoute = ApiThreadTitleRouteImport.update({
+  id: '/api/thread-title',
+  path: '/api/thread-title',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/thread-title': typeof ApiThreadTitleRoute
   '/api/cards/collection': typeof ApiCardsCollectionRoute
   '/api/cards/images': typeof ApiCardsImagesRoute
   '/api/cards/resolve': typeof ApiCardsResolveRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
     | '/api/cards/resolve'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
     | '/api/cards/resolve'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/settings'
     | '/api/chat'
+    | '/api/thread-title'
     | '/api/cards/collection'
     | '/api/cards/images'
     | '/api/cards/resolve'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   SettingsRoute: typeof SettingsRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiThreadTitleRoute: typeof ApiThreadTitleRoute
   ApiCardsCollectionRoute: typeof ApiCardsCollectionRoute
   ApiCardsImagesRoute: typeof ApiCardsImagesRoute
   ApiCardsResolveRoute: typeof ApiCardsResolveRoute
@@ -122,6 +135,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/thread-title': {
+      id: '/api/thread-title'
+      path: '/api/thread-title'
+      fullPath: '/api/thread-title'
+      preLoaderRoute: typeof ApiThreadTitleRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   SettingsRoute: SettingsRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiThreadTitleRoute: ApiThreadTitleRoute,
   ApiCardsCollectionRoute: ApiCardsCollectionRoute,
   ApiCardsImagesRoute: ApiCardsImagesRoute,
   ApiCardsResolveRoute: ApiCardsResolveRoute,

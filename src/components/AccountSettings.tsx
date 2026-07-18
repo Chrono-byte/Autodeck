@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AuthLoading,
   Authenticated,
@@ -52,6 +52,7 @@ function SettingsPage() {
           <a href="#account" className="active">
             Account
           </a>
+          <a href="#generation">Generation</a>
           <a href="#connections">Connections</a>
         </aside>
         <section className="settings-content">
@@ -85,6 +86,14 @@ function SettingsPage() {
             </div>
           </section>
 
+          <section className="settings-section" id="generation">
+            <div className="settings-section-heading">
+              <h2>Text generation</h2>
+              <p>Choose the fast model used for automatic conversation titles.</p>
+            </div>
+            <TitleGenerationSettings />
+          </section>
+
           <section className="settings-section" id="connections">
             <div className="settings-section-heading">
               <h2>Connections</h2>
@@ -95,6 +104,67 @@ function SettingsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function TitleGenerationSettings() {
+  const preferences = useQuery(api.chatPreferences.get);
+  const codexStatus = useQuery(api.openaiCodex.status);
+  const saveTitleModel = useMutation(api.chatPreferences.saveTitleModel);
+  const selected = preferences?.titleModel ?? "gpt-5.4-mini";
+  const isLocal = selected === "local" || selected.startsWith("local:");
+  const [localModel, setLocalModel] = useState("");
+
+  useEffect(() => {
+    if (selected.startsWith("local:")) setLocalModel(selected.slice("local:".length));
+  }, [selected]);
+
+  const saveLocalModel = (value: string) => {
+    const normalized = value.trim();
+    void saveTitleModel({ titleModel: normalized ? `local:${normalized}` : "local" });
+  };
+
+  return (
+    <div className="settings-card generation-settings-card">
+      <label>
+        Title model
+        <select
+          value={isLocal ? "local" : selected}
+          disabled={preferences === undefined}
+          onChange={(event) => {
+            const value = event.target.value;
+            void saveTitleModel({
+              titleModel:
+                value === "local" && localModel.trim() ? `local:${localModel.trim()}` : value,
+            });
+          }}
+        >
+          <option value="gpt-5.4-mini">GPT-5.4 Mini</option>
+          <option value="gpt-5.3-codex-spark">GPT-5.3 Codex Spark</option>
+          <option value="local">LM Studio</option>
+        </select>
+      </label>
+      {isLocal && (
+        <label>
+          LM Studio model identifier
+          <input
+            value={localModel}
+            onChange={(event) => setLocalModel(event.target.value)}
+            onBlur={(event) => saveLocalModel(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.currentTarget.blur();
+              }
+            }}
+            placeholder="Uses LM_STUDIO_TEXT_MODEL when blank"
+          />
+        </label>
+      )}
+      <p>
+        New threads are titled after the first message. If Codex is unavailable, Autodekt falls back
+        to LM Studio. {codexStatus?.connected ? "Codex is connected." : "Codex is not connected."}
+      </p>
+    </div>
   );
 }
 

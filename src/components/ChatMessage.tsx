@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import type { MessagePart, ToolCallPart, ToolResultPart, UIMessage } from "@tanstack/ai";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { manaAssetKey, remarkManaSymbols } from "../lib/mana-markdown";
 
 const TOOL_LABELS: Record<string, { active: string; complete: string; icon: string }> = {
   get_card: { active: "Looking up card", complete: "Looked up card", icon: "◇" },
@@ -12,6 +13,72 @@ const TOOL_LABELS: Record<string, { active: string; complete: string; icon: stri
   get_active_deck: { active: "Reading deck", complete: "Read deck", icon: "▤" },
   edit_active_deck: { active: "Updating deck", complete: "Updated deck", icon: "✦" },
 };
+
+const MANA_COLORS: Record<string, string> = {
+  W: "#f4f0d5",
+  U: "#84c6e8",
+  B: "#8c8490",
+  R: "#e47a5f",
+  G: "#78b88a",
+  C: "#c5c8c6",
+  S: "#b9d9e8",
+  X: "#aaa7a0",
+  Y: "#aaa7a0",
+  Z: "#aaa7a0",
+  P: "#9b655f",
+};
+
+function manaParts(symbol: string) {
+  if (/^\d+$/.test(symbol)) return ["C"];
+  return symbol.replaceAll("/", "").split("");
+}
+
+function manaBackground(symbol: string) {
+  const colors = manaParts(symbol).map((part) => MANA_COLORS[part] ?? MANA_COLORS.C);
+  if (colors.length === 1) return colors[0];
+  if (colors.length === 2) {
+    return `linear-gradient(135deg, ${colors[0]} 0 50%, ${colors[1]} 50% 100%)`;
+  }
+  const stops = colors.flatMap((color, index) => {
+    const start = (index / colors.length) * 100;
+    const end = ((index + 1) / colors.length) * 100;
+    return [`${color} ${start}%`, `${color} ${end}%`];
+  });
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+function ManaSymbol({ symbol }: { symbol: string }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const normalized = symbol.toUpperCase();
+  const compact = normalized.replaceAll("/", "");
+  const label = /^\d+$/.test(normalized) ? normalized : compact;
+  const style: CSSProperties = { background: manaBackground(normalized) };
+  const accessibleLabel = `${normalized} mana`;
+
+  if (!imageFailed) {
+    return (
+      <img
+        className="mana-symbol mana-symbol-image"
+        src={`/mana/${manaAssetKey(normalized)}.svg`}
+        alt={accessibleLabel}
+        title={accessibleLabel}
+        onError={() => setImageFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`mana-symbol mana-symbol-fallback ${label.length > 1 ? "mana-symbol-complex" : ""}`}
+      style={style}
+      role="img"
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
+    >
+      <span aria-hidden="true">{label}</span>
+    </span>
+  );
+}
 
 function displayName(name: string) {
   return name.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -54,12 +121,22 @@ const markdownComponents: Components = {
       </code>
     );
   },
+  i: ({ children, className, ...props }) => {
+    if (className === "mana-symbol-placeholder" && typeof children === "string") {
+      return <ManaSymbol symbol={children} />;
+    }
+    return (
+      <i {...props} className={className}>
+        {children}
+      </i>
+    );
+  },
 };
 
 export function Markdown({ children }: { children: string }) {
   return (
     <div className="markdown">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkManaSymbols]} components={markdownComponents}>
         {children}
       </ReactMarkdown>
     </div>

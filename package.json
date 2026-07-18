@@ -26,10 +26,14 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
+    "oxfmt": "^0.59.0",
+    "oxlint": "^1.74.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "latest",
     "vite": "latest",
     "vitest": "latest"

@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 
 type GroupMode = "tag" | "type" | "color" | "mana" | "zone";
 type SortMode = "name" | "mana" | "type";
-type ViewMode = "stacks" | "list";
+type ViewMode = "stacks" | "grid" | "list";
 type Zone = "commander" | "main" | "maybeboard";
 type ResolvedCard = {
   name: string;
@@ -73,10 +73,12 @@ export function DeckEditor({
   deck,
   thread,
   cards,
+  onClose,
 }: {
   deck: Doc<"decks">;
   thread: Doc<"threads">;
   cards: Doc<"deckCards">[];
+  onClose: () => void;
 }) {
   const [group, setGroup] = useState<GroupMode>("type");
   const [sort, setSort] = useState<SortMode>("mana");
@@ -89,6 +91,13 @@ export function DeckEditor({
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(cards[0]?._id ?? null);
   const [images, setImages] = useState<Record<string, CardImage>>({});
+  const importButtonRef = useRef<HTMLButtonElement>(null);
+  const importBoxRef = useRef<HTMLDivElement>(null);
+  const [cardMenu, setCardMenu] = useState<{
+    card: Doc<"deckCards">;
+    x: number;
+    y: number;
+  } | null>(null);
   const upsert = useMutation(api.deckCards.upsert);
   const remove = useMutation(api.deckCards.remove);
   const updateTags = useMutation(api.deckCards.updateTags);
@@ -169,6 +178,49 @@ export function DeckEditor({
     if (selectedId && cards.some((card) => card._id === selectedId)) return;
     setSelectedId(cards[0]?._id ?? null);
   }, [cards, selectedId]);
+
+  useEffect(() => {
+    if (!importing) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (importButtonRef.current?.contains(target) || importBoxRef.current?.contains(target))
+        return;
+      setImporting(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setImporting(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [importing]);
+
+  useEffect(() => {
+    if (!cardMenu) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest(".card-context-menu")) return;
+      setCardMenu(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCardMenu(null);
+    };
+    const closeOnViewportChange = () => setCardMenu(null);
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", closeOnViewportChange);
+    window.addEventListener("scroll", closeOnViewportChange, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", closeOnViewportChange);
+      window.removeEventListener("scroll", closeOnViewportChange, true);
+    };
+  }, [cardMenu]);
 
   const grouped = useMemo(() => {
     const keyFor = (card: Doc<"deckCards">) => {
@@ -308,15 +360,52 @@ export function DeckEditor({
         .reduce((sum, card) => sum + card.quantity, 0),
     ]),
   ) as Record<string, number>;
+  const commanderCount = cards
+    .filter((card) => card.zone === "commander")
+    .reduce((sum, card) => sum + card.quantity, 0);
+  const deckStatus =
+    deckTotal === 100 && commanderCount > 0
+      ? "Ready"
+      : deckTotal > 100
+        ? `${deckTotal - 100} over`
+        : `${100 - deckTotal} to go`;
+  const zoneLabel =
+    zone === "main" ? "main deck" : zone === "commander" ? "command zone" : "maybeboard";
 
   return (
     <aside className="deck-pane">
       <header className="pane-header deck-titlebar">
         <div>
-          <p className="eyebrow">LIVE DECK</p>
+          <p className="eyebrow">Commander · Deck editor</p>
           <h2>{deck.name}</h2>
+          <div className="deck-identity" aria-label="Deck identity">
+            {deck.colorIdentity.length ? (
+              deck.colorIdentity.map((color) => (
+                <span key={color} className={`color-pip color-${color.toLowerCase()}`}>
+                  {color}
+                </span>
+              ))
+            ) : (
+              <span className="color-pip color-c">C</span>
+            )}
+            <span>{deck.commanderName ?? "Commander not set"}</span>
+          </div>
         </div>
-        <span className="deck-count">{deckTotal} / 100</span>
+        <div className="deck-title-actions">
+          <span
+            className={`deck-count ${deckTotal === 100 && commanderCount > 0 ? "complete" : ""}`}
+          >
+            {deckTotal} / 100 · {deckStatus}
+          </span>
+          <button
+            type="button"
+            className="deck-pane-close"
+            onClick={onClose}
+            aria-label="Hide deck"
+          >
+            Hide deck
+          </button>
+        </div>
       </header>
 
       <div className="deck-commandbar">
@@ -327,28 +416,46 @@ export function DeckEditor({
             onKeyDown={(event) => {
               if (event.key === "Enter") void addCard();
             }}
-            placeholder="Find and add cards to main deck…"
+            placeholder={`Find and add cards to ${zoneLabel}…`}
+            aria-label={`Find a card to add to ${zoneLabel}`}
           />
-          <select value={zone} onChange={(event) => setZone(event.target.value as Zone)}>
+          <select
+            value={zone}
+            onChange={(event) => setZone(event.target.value as Zone)}
+            aria-label="Add card to"
+          >
             <option value="main">Main</option>
             <option value="commander">Commander</option>
             <option value="maybeboard">Maybe</option>
           </select>
-          <button onClick={() => void addCard()} disabled={busy} aria-label="Add card">
-            +
+          <button
+            onClick={() => void addCard()}
+            disabled={busy}
+            aria-label={`Add card to ${zoneLabel}`}
+          >
+            {busy ? "…" : "+"}
           </button>
         </div>
         <div className="deck-toolbar">
           <label>
             View
-            <select value={view} onChange={(event) => setView(event.target.value as ViewMode)}>
+            <select
+              value={view}
+              onChange={(event) => setView(event.target.value as ViewMode)}
+              aria-label="View"
+            >
               <option value="stacks">Visual stacks</option>
+              <option value="grid">Visual grid</option>
               <option value="list">Compact list</option>
             </select>
           </label>
           <label>
             Group
-            <select value={group} onChange={(event) => setGroup(event.target.value as GroupMode)}>
+            <select
+              value={group}
+              onChange={(event) => setGroup(event.target.value as GroupMode)}
+              aria-label="Group"
+            >
               <option value="type">Type</option>
               <option value="tag">Tag</option>
               <option value="color">Color</option>
@@ -358,20 +465,29 @@ export function DeckEditor({
           </label>
           <label>
             Sort
-            <select value={sort} onChange={(event) => setSort(event.target.value as SortMode)}>
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as SortMode)}
+              aria-label="Sort"
+            >
               <option value="mana">Mana value</option>
               <option value="name">Name</option>
               <option value="type">Type</option>
             </select>
           </label>
-          <button className="text-button" onClick={() => setImporting(!importing)}>
+          <button
+            ref={importButtonRef}
+            className="text-button"
+            onClick={() => setImporting(!importing)}
+            aria-expanded={importing}
+          >
             {importing ? "Close import" : "Import"}
           </button>
         </div>
       </div>
 
       {importing && (
-        <div className="import-box">
+        <div className="import-box" ref={importBoxRef}>
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
@@ -385,7 +501,9 @@ export function DeckEditor({
       )}
       {notice && <div className="notice-banner">{notice}</div>}
 
-      <div className={`deck-browser ${view === "list" ? "list-view" : ""}`}>
+      <div
+        className={`deck-browser ${view === "stacks" ? "stacks-view" : ""} ${view === "list" ? "list-view" : ""} ${view === "grid" ? "grid-view" : ""}`}
+      >
         {selectedCard && (
           <aside className="card-preview" aria-label="Selected card preview">
             <div className="preview-image-shell">
@@ -462,22 +580,51 @@ export function DeckEditor({
                 </h3>
                 <span>{groupCards.length} unique</span>
               </header>
-              <div className="visual-stack">
+              <div className={`visual-stack ${view === "grid" ? "card-grid" : ""}`}>
                 {groupCards.map((card) => {
                   const image = images[normalizeName(card.name)];
                   const isSelected = card._id === selectedCard?._id;
                   return (
-                    <button
-                      className={`stack-card ${isSelected ? "selected" : ""}`}
+                    <div
+                      className={`stack-card ${view === "grid" ? "grid-card" : ""} ${isSelected ? "selected" : ""}`}
                       key={card._id}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedId(card._id)}
                       onFocus={() => setSelectedId(card._id)}
+                      onContextMenu={(event) => {
+                        event.preventDefault();
+                        setSelectedId(card._id);
+                        setCardMenu({
+                          card,
+                          x: Math.max(8, Math.min(event.clientX, window.innerWidth - 224)),
+                          y: Math.max(8, Math.min(event.clientY, window.innerHeight - 292)),
+                        });
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedId(card._id);
+                          return;
+                        }
+                        if (event.shiftKey && event.key === "F10") {
+                          event.preventDefault();
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setCardMenu({
+                            card,
+                            x: Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 224)),
+                            y: Math.max(8, Math.min(bounds.top + 30, window.innerHeight - 292)),
+                          });
+                        }
+                      }}
+                      aria-haspopup="menu"
+                      aria-label={`${card.name}, mana value ${card.manaValue}`}
                       title={card.oracleText}
                     >
                       <img
                         loading="lazy"
                         src={
-                          isSelected
+                          view !== "list" || isSelected
                             ? (image?.imageUrl ?? fallbackImage(card.name, "normal"))
                             : (image?.artCropUrl ?? fallbackImage(card.name, "art_crop"))
                         }
@@ -487,7 +634,24 @@ export function DeckEditor({
                       {card.quantity > 1 && <b className="stack-quantity">{card.quantity}</b>}
                       <strong>{card.name}</strong>
                       <small>{card.manaValue === 0 ? "—" : card.manaValue}</small>
-                    </button>
+                      <button
+                        type="button"
+                        className="stack-menu-button"
+                        aria-label={`Open menu for ${card.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedId(card._id);
+                          const bounds = event.currentTarget.getBoundingClientRect();
+                          setCardMenu({
+                            card,
+                            x: Math.max(8, Math.min(bounds.right + 4, window.innerWidth - 224)),
+                            y: Math.max(8, Math.min(bounds.top, window.innerHeight - 292)),
+                          });
+                        }}
+                      >
+                        ⋮
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -500,6 +664,91 @@ export function DeckEditor({
           )}
         </div>
       </div>
+
+      {cardMenu && (
+        <div
+          className="card-context-menu"
+          role="menu"
+          aria-label={`Actions for ${cardMenu.card.name}`}
+          style={{ left: cardMenu.x, top: cardMenu.y }}
+        >
+          <p>{cardMenu.card.name}</p>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setCardMenu(null);
+              void updateCard(cardMenu.card, { quantity: cardMenu.card.quantity + 1 });
+            }}
+          >
+            Add another copy
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={cardMenu.card.quantity <= 1}
+            onClick={() => {
+              setCardMenu(null);
+              void updateCard(cardMenu.card, { quantity: cardMenu.card.quantity - 1 });
+            }}
+          >
+            Remove one copy
+          </button>
+          <div className="card-context-divider" />
+          {cardMenu.card.zone !== "commander" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setCardMenu(null);
+                void updateCard(cardMenu.card, { zone: "commander" });
+              }}
+            >
+              Move to commander
+            </button>
+          )}
+          {cardMenu.card.zone !== "main" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setCardMenu(null);
+                void updateCard(cardMenu.card, { zone: "main" });
+              }}
+            >
+              Move to main deck
+            </button>
+          )}
+          {cardMenu.card.zone !== "maybeboard" && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setCardMenu(null);
+                void updateCard(cardMenu.card, { zone: "maybeboard" });
+              }}
+            >
+              Move to maybeboard
+            </button>
+          )}
+          <div className="card-context-divider" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            onClick={() => {
+              setCardMenu(null);
+              void remove({
+                cardId: cardMenu.card._id,
+                threadId: thread._id,
+                actor: "user",
+              });
+            }}
+          >
+            Remove from deck
+          </button>
+        </div>
+      )}
 
       <footer className="deck-summary-bar">
         <span>

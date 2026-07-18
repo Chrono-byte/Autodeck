@@ -3,6 +3,7 @@ import type { UIMessage } from "@tanstack/ai-client";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { authClient } from "../lib/auth-client";
 import { usePersistentChat } from "../lib/persistent-chat-client";
 import { ChatMessage } from "./ChatMessage";
 
@@ -55,7 +56,15 @@ function localPreferences() {
   return defaults;
 }
 
-export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"threads"> }) {
+export function DeckChat({
+  deck,
+  thread,
+  onOpenDeck,
+}: {
+  deck: Doc<"decks">;
+  thread: Doc<"threads">;
+  onOpenDeck: () => void;
+}) {
   const [input, setInput] = useState("");
   const [modelChoice, setModelChoice] = useState<ModelChoice>("gpt-5.6-sol");
   const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>("medium");
@@ -69,6 +78,7 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const followStreamRef = useRef(true);
   const preferencesHydratedRef = useRef(false);
+  const titleRequestedRef = useRef(false);
   const codexStatus = useQuery(api.openaiCodex.status);
   const accountPreferences = useQuery(api.chatPreferences.get);
   const saveMessages = useMutation(api.threads.saveMessages);
@@ -159,9 +169,34 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
     textarea.style.height = `${Math.min(textarea.scrollHeight, 180)}px`;
   }, [input]);
 
+  const requestThreadTitle = async (message: string) => {
+    try {
+      const { data, error } = await authClient.convex.token();
+      if (error || !data?.token) return;
+      await fetch("/api/thread-title", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${data.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ threadId: thread._id, message }),
+      });
+    } catch {
+      // A title is optional; leave the placeholder when the fast model is unavailable.
+    }
+  };
+
   const submit = () => {
     const content = input.trim();
     if (!content) return;
+    if (
+      !titleRequestedRef.current &&
+      chat.messages.length === 0 &&
+      (thread.title === "New thread" || thread.title === "Deck study")
+    ) {
+      titleRequestedRef.current = true;
+      void requestThreadTitle(content);
+    }
     followStreamRef.current = true;
     setShowJumpToTurn(false);
     chat.sendMessage(content);
@@ -197,9 +232,11 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
     <section className="chat-pane">
       <header className="pane-header">
         <div>
-          <p className="eyebrow">THREAD</p>
           <h2>{thread.title}</h2>
         </div>
+        <button className="deck-pane-open" type="button" onClick={onOpenDeck}>
+          Show deck
+        </button>
       </header>
       <div
         className="chat-messages"
@@ -231,12 +268,9 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
         <div className="chat-message-list" ref={messagesContentRef}>
           {chat.messages.length === 0 && (
             <div className="chat-empty">
-              <p className="eyebrow">DECK STUDY</p>
-              <h1>How should we shape {deck.name}?</h1>
-              <p>
-                I can inspect the live deck, verify cards, research its structure, and edit the list
-                with you.
-              </p>
+              <p className="eyebrow">{deck.commanderName ?? deck.name}</p>
+              <h1>What do you want to work on?</h1>
+              <p>Ask about the list, compare cards, or request a specific deck change.</p>
               <div className="suggestion-grid">
                 <button
                   type="button"
@@ -369,7 +403,6 @@ export function DeckChat({ deck, thread }: { deck: Doc<"decks">; thread: Doc<"th
             aria-label="Message Autodekt"
           />
           <div className="composer-footer">
-            <span className="composer-hint">Deck-aware · card text verified through Scryfall</span>
             <div className="composer-actions">
               <div className="model-selector" ref={selectorRef}>
                 <button

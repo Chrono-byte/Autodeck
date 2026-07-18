@@ -16,16 +16,13 @@ export function AuthScreen() {
           <div className="brand-mark">A</div>
           <span>Autodekt</span>
         </div>
-        <p className="eyebrow">COMMANDER WORKSPACE</p>
-        <h1>Every brew deserves a working notebook.</h1>
-        <p>
-          Research cards, keep deck-specific conversations, and edit one shared list with your local
-          model.
-        </p>
+        <p className="eyebrow">Commander deck builder</p>
+        <h1>Build the list. Keep the context.</h1>
+        <p>Manage deck lists and deck-specific conversations in the same workspace.</p>
         <div className="auth-features">
-          <span>Live decklists</span>
-          <span>Persistent threads</span>
-          <span>Verified Oracle text</span>
+          <span>Deck editor</span>
+          <span>Saved conversations</span>
+          <span>Scryfall card data</span>
         </div>
       </section>
       <form
@@ -42,8 +39,8 @@ export function AuthScreen() {
           setBusy(false);
         }}
       >
-        <p className="eyebrow">{mode === "signin" ? "WELCOME BACK" : "CREATE ACCOUNT"}</p>
-        <h2>{mode === "signin" ? "Sign in to your decks" : "Start your first brew"}</h2>
+        <p className="eyebrow">{mode === "signin" ? "Welcome back" : "Create account"}</p>
+        <h2>{mode === "signin" ? "Sign in" : "Get started"}</h2>
         {mode === "signup" && (
           <label>
             Name
