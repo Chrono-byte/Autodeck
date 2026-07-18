@@ -950,10 +950,18 @@
     @apply min-h-0 overflow-y-auto border-r border-line bg-panel p-4;
   }
   .preview-image-shell {
-    @apply relative aspect-[488/680] overflow-hidden rounded-lg bg-neutral-200;
+    @apply relative isolate aspect-[488/680] overflow-hidden rounded-lg bg-neutral-800;
+  }
+  .preview-image-shell::before {
+    content: "";
+    @apply absolute inset-0;
+    background:
+      radial-gradient(circle at 28% 22%, rgb(255 255 255 / 10%), transparent 34%),
+      radial-gradient(circle at 70% 68%, rgb(122 148 111 / 20%), transparent 38%),
+      linear-gradient(145deg, #242a22, #111510);
   }
   .preview-image-shell img {
-    @apply block size-full object-cover;
+    @apply relative z-[1] block size-full object-cover;
   }
   .preview-quantity {
     @apply absolute right-2 top-2 rounded bg-black/80 px-2 py-1 font-mono text-[10px] text-white;

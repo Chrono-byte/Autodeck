@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { cardImageUrl } from "../lib/card-image";
 import { formatMtgoDeck, mtgoExportFilename } from "../lib/mtgo-export";
 import { ManaSymbol } from "./ManaSymbol";
 
@@ -18,7 +19,6 @@ type ResolvedCard = {
   oracleId?: string;
   oracleTags?: string[];
 };
-type CardImage = { imageUrl?: string; artCropUrl?: string };
 
 const TYPE_ORDER = [
   "Commander",
@@ -51,10 +51,6 @@ function primaryType(typeLine: string) {
 
 function normalizeName(name: string) {
   return name.trim().toLocaleLowerCase();
-}
-
-function fallbackImage(name: string, version: "normal" | "art_crop") {
-  return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=${version}`;
 }
 
 function groupIcon(label: string) {
@@ -94,7 +90,6 @@ export function DeckEditor({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(cards[0]?._id ?? null);
-  const [images, setImages] = useState<Record<string, CardImage>>({});
   const importButtonRef = useRef<HTMLButtonElement>(null);
   const importBoxRef = useRef<HTMLDivElement>(null);
   const [cardMenu, setCardMenu] = useState<{
@@ -107,15 +102,6 @@ export function DeckEditor({
   const updateTags = useMutation(api.deckCards.updateTags);
   const updateSearchMetadata = useMutation(api.deckCards.updateSearchMetadata);
   const syncCommanderMetadata = useMutation(api.deckCards.syncCommanderMetadata);
-
-  const cardNamesKey = useMemo(
-    () =>
-      cards
-        .map((card) => card.name)
-        .sort()
-        .join("\n"),
-    [cards],
-  );
 
   const missingSearchMetadataKey = useMemo(
     () =>
@@ -187,45 +173,6 @@ export function DeckEditor({
       });
     return () => controller.abort();
   }, [cards, missingSearchMetadataKey, updateSearchMetadata]);
-
-  useEffect(() => {
-    if (!cards.length) {
-      setImages({});
-      return;
-    }
-    const controller = new AbortController();
-    void fetch("/api/cards/images", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ names: cards.map((card) => card.name) }),
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Image lookup failed");
-        return response.json() as Promise<{
-          cards: Array<{
-            name: string;
-            aliases: string[];
-            imageUrl?: string;
-            artCropUrl?: string;
-          }>;
-        }>;
-      })
-      .then((result) => {
-        setImages(
-          Object.fromEntries(
-            result.cards.flatMap((card) =>
-              [card.name, ...card.aliases].map((name) => [normalizeName(name), card] as const),
-            ),
-          ),
-        );
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setImages({});
-      });
-    return () => controller.abort();
-  }, [cardNamesKey]);
 
   useEffect(() => {
     if (selectedId && cards.some((card) => card._id === selectedId)) return;
@@ -309,8 +256,6 @@ export function DeckEditor({
   }, [cards, group, sort]);
 
   const selectedCard = cards.find((card) => card._id === selectedId) ?? cards[0];
-  const selectedImage = selectedCard ? images[normalizeName(selectedCard.name)] : undefined;
-
   const saveResolved = async (
     card: ResolvedCard,
     quantity: number,
@@ -424,6 +369,23 @@ export function DeckEditor({
         ? `Exported ${filename}. Maybeboard cards were omitted because MTGO does not support that zone.`
         : `Exported ${filename}.`,
     );
+  };
+
+  const copyMtgo = async () => {
+    const exportedCards = cards.filter((card) => card.zone !== "maybeboard");
+    if (!exportedCards.length) return;
+
+    try {
+      await navigator.clipboard.writeText(formatMtgoDeck(exportedCards));
+      const omitted = cards.filter((card) => card.zone === "maybeboard").length;
+      setNotice(
+        omitted
+          ? "Copied MTGO decklist. Maybeboard cards were omitted because MTGO does not support that zone."
+          : "Copied MTGO decklist to clipboard.",
+      );
+    } catch {
+      setNotice("Could not copy the MTGO decklist. Check this site's clipboard permission.");
+    }
   };
 
   const deckTotal = cards
@@ -570,6 +532,15 @@ export function DeckEditor({
           >
             Export MTGO
           </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => void copyMtgo()}
+            disabled={!cards.some((card) => card.zone !== "maybeboard")}
+            title="Copy a Magic Online-compatible text decklist"
+          >
+            Copy MTGO
+          </button>
         </div>
       </div>
 
@@ -594,10 +565,7 @@ export function DeckEditor({
         {selectedCard && (
           <aside className="card-preview" aria-label="Selected card preview">
             <div className="preview-image-shell">
-              <img
-                src={selectedImage?.imageUrl ?? fallbackImage(selectedCard.name, "normal")}
-                alt={selectedCard.name}
-              />
+              <img src={cardImageUrl(selectedCard.name, "normal")} alt={selectedCard.name} />
               {selectedCard.quantity > 1 && (
                 <span className="preview-quantity">×{selectedCard.quantity}</span>
               )}
@@ -669,7 +637,6 @@ export function DeckEditor({
               </header>
               <div className={`visual-stack ${view === "grid" ? "card-grid" : ""}`}>
                 {groupCards.map((card) => {
-                  const image = images[normalizeName(card.name)];
                   const isSelected = card._id === selectedCard?._id;
                   return (
                     <div
@@ -712,8 +679,8 @@ export function DeckEditor({
                         loading="lazy"
                         src={
                           view !== "list" || isSelected
-                            ? (image?.imageUrl ?? fallbackImage(card.name, "normal"))
-                            : (image?.artCropUrl ?? fallbackImage(card.name, "art_crop"))
+                            ? cardImageUrl(card.name, "normal")
+                            : cardImageUrl(card.name, "art_crop")
                         }
                         alt=""
                       />
