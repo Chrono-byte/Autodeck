@@ -1,5 +1,6 @@
 export type ScryfallCard = {
   name: string;
+  oracle_id?: string;
   type_line: string;
   oracle_text?: string;
   mana_cost?: string;

@@ -14,6 +14,7 @@ import {
   braveSearchTool,
   comprehensiveRulesTool,
   createAnalyzeDeckTool,
+  createSearchActiveDeckTool,
   createValidateActiveDeckTool,
   getCardOracleTagsTool,
   getCardTool,
@@ -207,6 +208,7 @@ export const Route = createFileRoute("/api/chat")({
 
         const getActiveDeckTool = getActiveDeckDefinition.server(readActiveDeck);
         const analyzeDeckTool = createAnalyzeDeckTool(readActiveDeck);
+        const searchActiveDeckTool = createSearchActiveDeckTool(readActiveDeck);
         const validateActiveDeckTool = createValidateActiveDeckTool(readActiveDeck);
         const editActiveDeckTool = editActiveDeckDefinition.server(async (edit) => {
           const zone = edit.zone ?? "main";
@@ -360,6 +362,7 @@ export const Route = createFileRoute("/api/chat")({
               searchOracleTagsTool,
               searchCardsTool,
               analyzeDeckTool,
+              searchActiveDeckTool,
               validateActiveDeckTool,
               comprehensiveRulesTool,
               braveSearchTool,

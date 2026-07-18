@@ -3,6 +3,11 @@ import { z } from "zod";
 import { parseDecklist, summarizeDeck, type DeckEntry } from "../lib/deck-analysis";
 import { searchBraveWeb } from "../lib/brave-search.server";
 import { validateCommanderDeck, type CommanderDeckCard } from "../lib/commander-validation";
+import {
+  queryUsesOracleTags,
+  searchLocalDeck,
+  type LocalDeckSearchCard,
+} from "../lib/local-scryfall-query";
 import { lookupComprehensiveRules } from "../lib/mtg-rules.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { fetchDeckCards, getScryfallCard, searchScryfall } from "../lib/scryfall.server";
@@ -262,6 +267,99 @@ export function createAnalyzeDeckTool(
     if (entries.length > 110) throw new Error("Decklist contains more than 110 unique entries.");
     const { cards, unresolved } = await fetchDeckCards(entries);
     return summarizeDeck(entries, cards, unresolved);
+  });
+}
+
+const searchActiveDeckDefinition = toolDefinition({
+  name: "search_active_deck",
+  description:
+    "Locally filter the live deck with Scryfall-style syntax. Supports name/n, type/t, oracle/o, identity/id, mv/cmc, otag/oracletag, is, parentheses, OR, and -negation; also supports local zone and decktag filters.",
+  inputSchema: z.object({
+    query: z
+      .string()
+      .min(1)
+      .max(400)
+      .describe('A Scryfall-style query such as "otag:ramp mv<=3 -t:land".'),
+    includeMaybeboard: z
+      .boolean()
+      .nullish()
+      .describe("Whether to include maybeboard cards. Omit or pass null for false."),
+  }),
+  outputSchema: z.object({
+    query: z.string(),
+    searchedCards: z.number().int().nonnegative(),
+    matchedCards: z.number().int().nonnegative(),
+    matchedQuantity: z.number().int().nonnegative(),
+    tagCatalogUpdatedAt: z.string().optional(),
+    warnings: z.array(z.string()),
+    matches: z.array(
+      z.object({
+        name: z.string(),
+        quantity: z.number().int().positive(),
+        zone: z.enum(["commander", "main", "maybeboard"]),
+        typeLine: z.string(),
+        oracleText: z.string().optional(),
+        manaValue: z.number(),
+        colorIdentity: z.array(z.string()),
+        tags: z.array(z.string()),
+      }),
+    ),
+  }),
+});
+
+export function createSearchActiveDeckTool(
+  readActiveDeck: () => Promise<{ cards: LocalDeckSearchCard[] }>,
+) {
+  return searchActiveDeckDefinition.server(async ({ query, includeMaybeboard }) => {
+    let cards = (await readActiveDeck()).cards.filter(
+      (card) => includeMaybeboard === true || card.zone !== "maybeboard",
+    );
+    const warnings: string[] = [];
+    let tagCatalogUpdatedAt: string | undefined;
+    let oracleTagsById: ReadonlyMap<string, ReadonlySet<string>> | undefined;
+
+    if (queryUsesOracleTags(query)) {
+      const entriesByName = new Map<string, DeckEntry>();
+      for (const card of cards) {
+        const key = card.name.toLocaleLowerCase();
+        const existing = entriesByName.get(key);
+        entriesByName.set(key, {
+          name: existing?.name ?? card.name,
+          quantity: (existing?.quantity ?? 0) + card.quantity,
+        });
+      }
+      const entries = [...entriesByName.values()];
+      const { cards: currentCards, unresolved } = entries.length
+        ? await fetchDeckCards(entries)
+        : { cards: [], unresolved: [] };
+      const currentByName = new Map(
+        currentCards.map((card) => [card.name.toLocaleLowerCase(), card]),
+      );
+      cards = cards.map((card) => ({
+        ...card,
+        oracleId: currentByName.get(card.name.toLocaleLowerCase())?.oracle_id,
+      }));
+      if (unresolved.length > 0) {
+        warnings.push(`Oracle tags could not be resolved for: ${unresolved.join(", ")}.`);
+      }
+      const oracleIds = cards
+        .map((card) => card.oracleId)
+        .filter((oracleId): oracleId is string => oracleId !== undefined);
+      const tagIndex = await scryfallOracleTagCatalog.tagSlugsForOracleIds(oracleIds);
+      tagCatalogUpdatedAt = tagIndex.updatedAt;
+      oracleTagsById = tagIndex.tagsByOracleId;
+    }
+
+    const matches = searchLocalDeck(cards, query, { oracleTagsById });
+    return {
+      query,
+      searchedCards: cards.length,
+      matchedCards: matches.length,
+      matchedQuantity: matches.reduce((total, card) => total + card.quantity, 0),
+      ...(tagCatalogUpdatedAt ? { tagCatalogUpdatedAt } : {}),
+      warnings,
+      matches,
+    };
   });
 }
 

@@ -239,6 +239,35 @@ export class ScryfallOracleTagCatalog {
     return { updatedAt: snapshot.updatedAt, cardName: card.name, tags };
   }
 
+  async tagSlugsForOracleIds(oracleIds: string[]) {
+    const snapshot = await this.load();
+    const tagsByOracleId = new Map<string, ReadonlySet<string>>();
+    for (const oracleId of new Set(oracleIds)) {
+      const allIds = new Set(snapshot.tagIdsByOracleId.get(oracleId) ?? []);
+      const pending = [...allIds];
+      while (pending.length > 0) {
+        const id = pending.pop();
+        if (!id) continue;
+        const tag = snapshot.byId.get(id);
+        if (!tag) continue;
+        for (const parentId of tag.parent_ids) {
+          if (allIds.has(parentId)) continue;
+          allIds.add(parentId);
+          pending.push(parentId);
+        }
+      }
+      tagsByOracleId.set(
+        oracleId,
+        new Set(
+          [...allIds]
+            .map((id) => snapshot.byId.get(id)?.slug.toLocaleLowerCase())
+            .filter((slug): slug is string => slug !== undefined),
+        ),
+      );
+    }
+    return { updatedAt: snapshot.updatedAt, tagsByOracleId };
+  }
+
   private async load() {
     if (this.snapshot && this.expiresAt > this.dependencies.now()) return this.snapshot;
     if (this.pending) return this.pending;

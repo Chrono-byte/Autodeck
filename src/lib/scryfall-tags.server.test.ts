@@ -108,6 +108,11 @@ describe("ScryfallOracleTagCatalog", () => {
       expect.objectContaining({ slug: "mana-rock", relationship: "inherited" }),
       expect.objectContaining({ slug: "ramp", relationship: "inherited" }),
     ]);
+
+    const index = await catalog.tagSlugsForOracleIds(["oracle-arcane-signet"]);
+    expect(index.tagsByOracleId.get("oracle-arcane-signet")).toEqual(
+      new Set(["mana-rock-any-color", "mana-rock", "ramp"]),
+    );
   });
 
   it("deduplicates concurrent loads and reuses an unchanged export after expiry", async () => {

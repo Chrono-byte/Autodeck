@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { activeDeckEntries, analyzeDeckInputSchema } from "./tools.server";
+import {
+  activeDeckEntries,
+  analyzeDeckInputSchema,
+  createSearchActiveDeckTool,
+} from "./tools.server";
 
 describe("analyzeDeckInputSchema", () => {
   it("treats a null decklist as a request to analyze the live deck", () => {
@@ -31,5 +35,46 @@ describe("activeDeckEntries", () => {
         { name: "Faceless One", quantity: 2, zone: "main" },
       ]),
     ).toEqual([{ name: "Faceless One", quantity: 3 }]);
+  });
+});
+
+describe("createSearchActiveDeckTool", () => {
+  it("executes a compound query locally and excludes the maybeboard by default", async () => {
+    const tool = createSearchActiveDeckTool(async () => ({
+      cards: [
+        {
+          name: "Sol Ring",
+          quantity: 1,
+          zone: "main" as const,
+          typeLine: "Artifact",
+          oracleText: "{T}: Add {C}{C}.",
+          manaValue: 1,
+          colorIdentity: [],
+          tags: ["Ramp"],
+        },
+        {
+          name: "Arcane Denial",
+          quantity: 1,
+          zone: "maybeboard" as const,
+          typeLine: "Instant",
+          oracleText: "Counter target spell.",
+          manaValue: 2,
+          colorIdentity: ["U"],
+          tags: [],
+        },
+      ],
+    }));
+
+    const result = await tool.execute?.({
+      query: "t:artifact mv<=2",
+      includeMaybeboard: null,
+    });
+
+    expect(result).toMatchObject({
+      searchedCards: 1,
+      matchedCards: 1,
+      matchedQuantity: 1,
+      matches: [expect.objectContaining({ name: "Sol Ring" })],
+    });
   });
 });

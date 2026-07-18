@@ -22,9 +22,11 @@ export function formatMtgoDeck(cards: MtgoExportCard[]) {
 }
 
 export function mtgoExportFilename(deckName: string) {
-  const safeName = deckName
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+  const safeName = Array.from(deckName.trim(), (character) =>
+    character.charCodeAt(0) <= 0x1f ? "-" : character,
+  )
+    .join("")
+    .replace(/[<>:"/\\|?*]/g, "-")
     .replace(/-+/g, "-")
     .replace(/[-. ]+$/g, "");
 
