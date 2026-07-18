@@ -51,10 +51,12 @@ function observeStream(
   if (!response.body) return response;
   const reader = response.body.getReader();
   let bytes = 0;
+  let cancelled = false;
   const body = new ReadableStream<Uint8Array>({
     async pull(controller) {
       try {
         const chunk = await reader.read();
+        if (cancelled) return;
         if (chunk.done) {
           logger.info("chat.stream.completed", {
             requestId,
@@ -68,6 +70,7 @@ function observeStream(
         bytes += chunk.value.byteLength;
         controller.enqueue(chunk.value);
       } catch (error) {
+        if (cancelled) return;
         logger.error("chat.stream.failed", {
           requestId,
           durationMs: Date.now() - startedAt,
@@ -79,6 +82,7 @@ function observeStream(
       }
     },
     async cancel(reason) {
+      cancelled = true;
       logger.warn("chat.stream.cancelled", {
         requestId,
         durationMs: Date.now() - startedAt,

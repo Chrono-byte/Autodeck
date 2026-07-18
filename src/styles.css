@@ -740,6 +740,30 @@
   .message-actions button {
     @apply rounded border-0 bg-transparent px-2 py-1 text-[11px] text-muted hover:bg-soft hover:text-ink;
   }
+  .retry-model-selector {
+    @apply relative;
+  }
+  .retry-model-selector summary {
+    @apply flex cursor-pointer list-none items-center gap-1 rounded px-2 py-1 text-[11px] text-muted hover:bg-soft hover:text-ink;
+  }
+  .retry-model-selector summary::-webkit-details-marker {
+    display: none;
+  }
+  .retry-model-selector[open] summary {
+    @apply bg-soft text-ink;
+  }
+  .retry-model-menu {
+    @apply absolute bottom-[calc(100%+6px)] left-0 z-30 w-52 rounded-md border border-neutral-700 bg-sidebar p-1.5 text-white shadow-xl;
+  }
+  .retry-model-menu p {
+    @apply m-0 px-2 py-1 text-[10px] font-medium text-neutral-500;
+  }
+  .message-actions .retry-model-menu button {
+    @apply flex w-full items-center justify-between rounded border-0 bg-transparent px-2 py-2 text-left text-xs text-neutral-200 hover:bg-white/10 hover:text-white;
+  }
+  .message-actions .retry-model-menu button:disabled {
+    @apply cursor-not-allowed text-neutral-600 hover:bg-transparent hover:text-neutral-600;
+  }
 
   .streaming-caret {
     @apply ml-1 inline-block h-3.5 w-1 animate-pulse bg-accent align-[-2px];
@@ -896,26 +920,8 @@
   .deck-identity > span:last-child {
     @apply overflow-hidden text-ellipsis whitespace-nowrap;
   }
-  .color-pip {
-    @apply grid size-4 shrink-0 place-items-center rounded-full border border-black/10 text-[8px] font-bold text-neutral-800;
-  }
-  .color-w {
-    @apply bg-amber-50;
-  }
-  .color-u {
-    @apply bg-sky-300;
-  }
-  .color-b {
-    @apply bg-neutral-500 text-white;
-  }
-  .color-r {
-    @apply bg-red-400;
-  }
-  .color-g {
-    @apply bg-emerald-400;
-  }
-  .color-c {
-    @apply bg-neutral-200;
+  .deck-color-symbol {
+    @apply size-4 shrink-0;
   }
   .deck-count.complete {
     @apply bg-emerald-50 text-emerald-800;

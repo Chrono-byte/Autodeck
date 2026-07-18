@@ -54,6 +54,14 @@ export const searchCardsTool = searchCardsDefinition.server(async ({ query, limi
   searchScryfall(query, limit),
 );
 
+const colorBalanceEntrySchema = z.object({
+  pips: z.number(),
+  sources: z.number(),
+  pipShare: z.number(),
+  sourceShare: z.number(),
+  assessment: z.enum(["noDemand", "unsupported", "underSupported", "balanced", "overSupported"]),
+});
+
 const deckAnalysisSchema = z.object({
   totalCards: z.number(),
   resolvedCards: z.number(),
@@ -76,14 +84,40 @@ const deckAnalysisSchema = z.object({
     protection: z.array(z.string()),
     tutors: z.array(z.string()),
   }),
+  manaCurve: z.object({
+    "0": z.number(),
+    "1": z.number(),
+    "2": z.number(),
+    "3": z.number(),
+    "4": z.number(),
+    "5": z.number(),
+    "6": z.number(),
+    "7+": z.number(),
+  }),
+  nonlandCards: z.number(),
   averageManaValue: z.number(),
+  colorBalance: z.object({
+    colors: z.object({
+      W: colorBalanceEntrySchema,
+      U: colorBalanceEntrySchema,
+      B: colorBalanceEntrySchema,
+      R: colorBalanceEntrySchema,
+      G: colorBalanceEntrySchema,
+    }),
+    totalPips: z.number(),
+    totalSourceAssignments: z.number(),
+    reusableSourceCards: z.number(),
+    sourceDensity: z.number(),
+    overallSourceCountAssessment: z.enum(["low", "reasonable"]),
+    note: z.string(),
+  }),
   note: z.string(),
 });
 
 const analyzeDeckDefinition = toolDefinition({
   name: "analyze_decklist",
   description:
-    "Parse and analyze a Commander decklist using current Scryfall card data. Counts functional roles, reports curve, and identifies unresolved card names. Role counts can overlap.",
+    "Parse and analyze a Commander decklist using current Scryfall card data. Counts functional roles, returns a quantity-weighted mana curve and average mana value excluding pure lands, and identifies unresolved card names. Spell/land modal cards appear in both the land count and mana curve. Role counts can overlap.",
   inputSchema: z.object({
     decklist: z.string().min(1).describe("One card per line, optionally prefixed with a quantity."),
   }),

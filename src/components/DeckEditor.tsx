@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { ManaSymbol } from "./ManaSymbol";
 
 type GroupMode = "tag" | "type" | "color" | "mana" | "zone";
 type SortMode = "name" | "mana" | "type";
@@ -381,12 +382,10 @@ export function DeckEditor({
           <div className="deck-identity" aria-label="Deck identity">
             {deck.colorIdentity.length ? (
               deck.colorIdentity.map((color) => (
-                <span key={color} className={`color-pip color-${color.toLowerCase()}`}>
-                  {color}
-                </span>
+                <ManaSymbol key={color} symbol={color} className="deck-color-symbol" />
               ))
             ) : (
-              <span className="color-pip color-c">C</span>
+              <ManaSymbol symbol="C" className="deck-color-symbol" />
             )}
             <span>{deck.commanderName ?? "Commander not set"}</span>
           </div>

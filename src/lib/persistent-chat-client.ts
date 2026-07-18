@@ -39,6 +39,7 @@ class PersistentChatSession {
   private snapshot: ChatSnapshot;
   private activeSend = false;
   private drainTimer: ReturnType<typeof setTimeout> | undefined;
+  private nextRequestOptions: PersistentChatRequestOptions | undefined;
 
   constructor(
     private readonly id: string,
@@ -62,12 +63,14 @@ class PersistentChatSession {
         if (error || !data?.token) {
           throw new Error("Your session has expired. Please sign in again.");
         }
+        const body = this.nextRequestOptions ?? this.requestOptions;
+        this.nextRequestOptions = undefined;
         return {
           headers: {
             Authorization: `Bearer ${data.token}`,
             "x-request-id": crypto.randomUUID(),
           },
-          body: this.requestOptions,
+          body,
         };
       }),
       onMessagesChange: (messages) => {
@@ -130,6 +133,18 @@ class PersistentChatSession {
   reload() {
     if (this.activeSend || this.snapshot.isLoading) return;
     void this.runClientAction(() => this.client.reload());
+  }
+
+  reloadWith(requestOptions: Partial<PersistentChatRequestOptions>) {
+    if (this.activeSend || this.snapshot.isLoading) return;
+    this.nextRequestOptions = { ...this.requestOptions, ...requestOptions };
+    void this.runClientAction(async () => {
+      try {
+        await this.client.reload();
+      } finally {
+        this.nextRequestOptions = undefined;
+      }
+    });
   }
 
   stop() {
@@ -250,6 +265,8 @@ export function usePersistentChat({
     ...snapshot,
     sendMessage: (content: string) => session.sendMessage(content),
     reload: () => session.reload(),
+    reloadWith: (requestOptions: Partial<PersistentChatRequestOptions>) =>
+      session.reloadWith(requestOptions),
     stop: () => session.stop(),
     steerQueuedMessage: (id: string) => session.steerQueuedMessage(id),
     removeQueuedMessage: (id: string) => session.removeQueuedMessage(id),

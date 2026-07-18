@@ -1,8 +1,9 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { MessagePart, ToolCallPart, ToolResultPart, UIMessage } from "@tanstack/ai";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { manaAssetKey, remarkManaSymbols } from "../lib/mana-markdown";
+import { remarkManaSymbols } from "../lib/mana-markdown";
+import { ManaSymbol } from "./ManaSymbol";
 
 const TOOL_LABELS: Record<string, { active: string; complete: string; icon: string }> = {
   get_card: { active: "Looking up card", complete: "Looked up card", icon: "◇" },
@@ -13,72 +14,6 @@ const TOOL_LABELS: Record<string, { active: string; complete: string; icon: stri
   get_active_deck: { active: "Reading deck", complete: "Read deck", icon: "▤" },
   edit_active_deck: { active: "Updating deck", complete: "Updated deck", icon: "✦" },
 };
-
-const MANA_COLORS: Record<string, string> = {
-  W: "#f4f0d5",
-  U: "#84c6e8",
-  B: "#8c8490",
-  R: "#e47a5f",
-  G: "#78b88a",
-  C: "#c5c8c6",
-  S: "#b9d9e8",
-  X: "#aaa7a0",
-  Y: "#aaa7a0",
-  Z: "#aaa7a0",
-  P: "#9b655f",
-};
-
-function manaParts(symbol: string) {
-  if (/^\d+$/.test(symbol)) return ["C"];
-  return symbol.replaceAll("/", "").split("");
-}
-
-function manaBackground(symbol: string) {
-  const colors = manaParts(symbol).map((part) => MANA_COLORS[part] ?? MANA_COLORS.C);
-  if (colors.length === 1) return colors[0];
-  if (colors.length === 2) {
-    return `linear-gradient(135deg, ${colors[0]} 0 50%, ${colors[1]} 50% 100%)`;
-  }
-  const stops = colors.flatMap((color, index) => {
-    const start = (index / colors.length) * 100;
-    const end = ((index + 1) / colors.length) * 100;
-    return [`${color} ${start}%`, `${color} ${end}%`];
-  });
-  return `conic-gradient(${stops.join(", ")})`;
-}
-
-function ManaSymbol({ symbol }: { symbol: string }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  const normalized = symbol.toUpperCase();
-  const compact = normalized.replaceAll("/", "");
-  const label = /^\d+$/.test(normalized) ? normalized : compact;
-  const style: CSSProperties = { background: manaBackground(normalized) };
-  const accessibleLabel = `${normalized} mana`;
-
-  if (!imageFailed) {
-    return (
-      <img
-        className="mana-symbol mana-symbol-image"
-        src={`/mana/${manaAssetKey(normalized)}.svg`}
-        alt={accessibleLabel}
-        title={accessibleLabel}
-        onError={() => setImageFailed(true)}
-      />
-    );
-  }
-
-  return (
-    <span
-      className={`mana-symbol mana-symbol-fallback ${label.length > 1 ? "mana-symbol-complex" : ""}`}
-      style={style}
-      role="img"
-      aria-label={accessibleLabel}
-      title={accessibleLabel}
-    >
-      <span aria-hidden="true">{label}</span>
-    </span>
-  );
-}
 
 function displayName(name: string) {
   return name.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -260,14 +195,19 @@ export function ChatMessage({
   message,
   streaming,
   canRetry,
-  onRetry,
+  retryModelLabel,
+  retryModels,
+  onRetryWith,
 }: {
   message: UIMessage;
   streaming: boolean;
   canRetry: boolean;
-  onRetry: () => void;
+  retryModelLabel: string;
+  retryModels: Array<{ value: string; label: string; disabled?: boolean }>;
+  onRetryWith: (model: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const retryMenuRef = useRef<HTMLDetailsElement>(null);
   const visibleParts = message.parts.filter((part) => part.type !== "tool-result");
   const hasVisibleContent = visibleParts.some((part) => {
     if (part.type === "text" || part.type === "thinking") return Boolean(part.content);
@@ -312,14 +252,47 @@ export function ChatMessage({
               {copied ? "✓ Copied" : "▢ Copy"}
             </button>
             {canRetry && (
-              <button
-                type="button"
-                onClick={onRetry}
-                aria-label="Regenerate response"
-                title="Regenerate response"
+              <details
+                className="retry-model-selector"
+                ref={retryMenuRef}
+                onBlur={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget)) {
+                    event.currentTarget.removeAttribute("open");
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.currentTarget.removeAttribute("open");
+                    retryMenuRef.current?.querySelector("summary")?.focus();
+                  }
+                }}
               >
-                ↻ Retry
-              </button>
+                <summary aria-label={`Retry response with ${retryModelLabel}`}>
+                  <span aria-hidden="true">↻</span> Retry with {retryModelLabel}
+                  <span className="selector-chevron" aria-hidden="true">
+                    ⌄
+                  </span>
+                </summary>
+                <div className="retry-model-menu" role="menu">
+                  <p>Retry response with</p>
+                  {retryModels.map((model) => (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      key={model.value}
+                      disabled={model.disabled}
+                      title={model.disabled ? "Connect OpenAI Codex to use this model" : undefined}
+                      onClick={() => {
+                        retryMenuRef.current?.removeAttribute("open");
+                        onRetryWith(model.value);
+                      }}
+                    >
+                      <span>{model.label}</span>
+                      <span>{model.label === retryModelLabel ? "✓" : ""}</span>
+                    </button>
+                  ))}
+                </div>
+              </details>
             )}
           </div>
         )}

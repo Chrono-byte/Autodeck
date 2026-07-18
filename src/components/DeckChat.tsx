@@ -23,6 +23,10 @@ type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 type Speed = "standard" | "fast";
 type SelectorPanel = "root" | "model" | "effort" | "speed";
 
+function isModelChoice(value: string): value is ModelChoice {
+  return value === "local" || CODEX_MODELS.some((model) => model.value === value);
+}
+
 const titleCase = (value: string) =>
   value === "xhigh" ? "XHigh" : `${value[0]?.toUpperCase()}${value.slice(1)}`;
 
@@ -227,6 +231,25 @@ export function DeckChat({
       : (CODEX_MODELS.find((model) => model.value === activeChoice)?.label ?? "5.6 Sol");
   const activeModelLabel =
     activeChoice === "local" ? modelLabel : `${modelLabel} ${titleCase(reasoningEffort)}`;
+  const retryModels = [
+    { value: "local", label: "Local Gemma" },
+    ...CODEX_MODELS.map((model) => ({
+      value: model.value,
+      label: model.label,
+      disabled: !codexStatus?.connected,
+    })),
+  ];
+
+  const retryWithModel = (value: string) => {
+    if (!isModelChoice(value)) return;
+    followStreamRef.current = true;
+    setShowJumpToTurn(false);
+    setModelChoice(value);
+    chat.reloadWith({
+      provider: value === "local" ? "local" : "openai-codex",
+      model: value === "local" ? undefined : value,
+    });
+  };
 
   return (
     <section className="chat-pane">
@@ -310,10 +333,9 @@ export function DeckChat({
                 chat.isLoading && index === chat.messages.length - 1 && message.role === "assistant"
               }
               canRetry={index === chat.messages.length - 1}
-              onRetry={() => {
-                followStreamRef.current = true;
-                void chat.reload();
-              }}
+              retryModelLabel={modelLabel}
+              retryModels={retryModels}
+              onRetryWith={retryWithModel}
             />
           ))}
           {chat.isLoading && chat.messages.at(-1)?.role !== "assistant" && (
