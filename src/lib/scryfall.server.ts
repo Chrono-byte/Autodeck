@@ -196,19 +196,30 @@ export async function searchScryfall(query: string, limit = 12) {
   const result = await scryfallFetch<{ data: Array<ScryfallCard & { scryfall_uri: string }> }>(
     `/cards/search?q=${encodeURIComponent(query)}&order=edhrec`,
   );
-  return result.data.slice(0, limit).map((card) => ({
+  return result.data.slice(0, limit).map(scryfallSearchResult);
+}
+
+export function scryfallSearchResult(card: ScryfallCard & { scryfall_uri: string }) {
+  const faceTypeLines = [
+    ...new Set(
+      card.card_faces
+        ?.map((face) => face.type_line)
+        .filter((typeLine): typeLine is string => typeLine !== undefined) ?? [],
+    ),
+  ];
+  return {
     name: card.name,
-    typeLine: card.type_line,
+    typeLine: card.type_line ?? (faceTypeLines.join(" // ") || "Unknown"),
     oracleText:
       card.oracle_text ??
       card.card_faces
         ?.map((face) => face.oracle_text)
         .filter(Boolean)
         .join(" // "),
-    manaValue: card.cmc,
+    manaValue: card.cmc ?? card.card_faces?.[0]?.cmc ?? 0,
     colorIdentity: card.color_identity,
     url: card.scryfall_uri,
-  }));
+  };
 }
 
 async function resolveScryfallCard(name: string) {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ScryfallClient } from "./scryfall.server";
+import { ScryfallClient, scryfallSearchResult } from "./scryfall.server";
 
 function jsonResponse(value: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(value), {
@@ -67,6 +67,39 @@ describe("ScryfallClient", () => {
     await expect(client.request("/limited")).resolves.toEqual({ ok: true });
     expect(sleeps).toEqual([2000]);
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("scryfallSearchResult", () => {
+  it("normalizes reversible cards whose type and mana value exist only on faces", () => {
+    expect(
+      scryfallSearchResult({
+        name: "Estrid's Invocation // Estrid's Invocation",
+        type_line: undefined as unknown as string,
+        cmc: undefined as unknown as number,
+        color_identity: ["U"],
+        scryfall_uri: "https://scryfall.com/card/example",
+        card_faces: [
+          {
+            name: "Estrid's Invocation",
+            type_line: "Enchantment",
+            oracle_text: "You may have this enchantment enter as a copy.",
+            cmc: 3,
+          },
+          {
+            name: "Estrid's Invocation",
+            type_line: "Enchantment",
+            oracle_text: "You may have this enchantment enter as a copy.",
+            cmc: 3,
+          },
+        ],
+      }),
+    ).toMatchObject({
+      typeLine: "Enchantment",
+      manaValue: 3,
+      oracleText:
+        "You may have this enchantment enter as a copy. // You may have this enchantment enter as a copy.",
+    });
   });
 });
 

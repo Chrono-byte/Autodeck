@@ -20,6 +20,7 @@ export type ScryfallCard = {
     type_line?: string;
     oracle_text?: string;
     mana_cost?: string;
+    cmc?: number;
     image_uris?: {
       normal?: string;
       art_crop?: string;
