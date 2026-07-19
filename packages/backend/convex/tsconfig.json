@@ -1,0 +1,8 @@
+{
+  "extends": "@autodekt/config/typescript/convex.json",
+  /* Convex runtime compiler defaults live in the shared preset.
+   * This package-local file only scopes the source inputs.
+   */
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}

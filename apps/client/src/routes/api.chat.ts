@@ -7,8 +7,8 @@ import {
 } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createFileRoute } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "@autodekt/backend/api";
+import type { Id } from "@autodekt/backend/data-model";
 import { DEFAULT_CODEX_MODEL, isCodexModel, normalizeReasoningEffort } from "../ai/codex-models";
 import {
   braveSearchTool,

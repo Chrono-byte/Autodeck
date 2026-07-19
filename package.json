@@ -1,49 +1,27 @@
 {
   "name": "autodekt",
   "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "dev:desktop": "pnpm --filter @autodekt/desktop dev",
-    "dev:backend": "convex dev",
-    "build": "vite build && tsc --noEmit",
-    "build:desktop": "pnpm --filter @autodekt/desktop build",
-    "start:desktop": "pnpm build && pnpm build:desktop && pnpm --filter @autodekt/desktop start",
-    "package:desktop": "pnpm build && pnpm --filter @autodekt/desktop package",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@convex-dev/better-auth": "latest",
-    "@earendil-works/pi-ai": "latest",
-    "@tanstack/ai": "latest",
-    "@tanstack/ai-client": "latest",
-    "@tanstack/ai-openai": "latest",
-    "@tanstack/ai-react": "latest",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-start": "latest",
-    "better-auth": "~1.6.15",
-    "convex": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "react-markdown": "latest",
-    "remark-gfm": "latest",
-    "zod": "latest"
+    "dev": "turbo dev --filter=@autodekt/client --filter=@autodekt/backend",
+    "dev:client": "turbo dev --filter=@autodekt/client",
+    "dev:desktop": "turbo dev --filter=@autodekt/desktop",
+    "dev:backend": "turbo dev --filter=@autodekt/backend",
+    "build": "turbo build",
+    "build:client": "turbo build --filter=@autodekt/client",
+    "build:desktop": "turbo build --filter=@autodekt/desktop",
+    "start:desktop": "pnpm build:client && pnpm build:desktop && pnpm --filter @autodekt/desktop start",
+    "package:desktop": "pnpm build:client && pnpm --filter @autodekt/desktop package",
+    "check-types": "turbo check-types",
+    "test": "turbo test",
+    "test:watch": "pnpm --filter @autodekt/client test:watch",
+    "check": "oxlint apps packages && oxfmt --check apps packages *.json *.md *.yaml"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
-    "tailwindcss": "^4.3.3",
-    "typescript": "latest",
-    "vite": "latest",
-    "vitest": "latest"
-  }
+    "turbo": "latest",
+    "typescript": "latest"
+  },
+  "packageManager": "pnpm@11.5.3"
 }

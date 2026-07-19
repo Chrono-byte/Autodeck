@@ -1,15 +1,8 @@
 {
+  "extends": "@autodekt/config/typescript/electron.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022", "DOM"],
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
     "rootDir": "src",
-    "outDir": "dist",
-    "strict": true,
-    "noEmitOnError": true,
-    "skipLibCheck": true,
-    "types": ["node", "electron"]
+    "outDir": "dist"
   },
   "include": ["src/**/*.ts", "src/**/*.cts"]
 }

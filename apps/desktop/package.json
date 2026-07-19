@@ -13,6 +13,7 @@
     "check-types": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@autodekt/config": "workspace:*",
     "@types/node": "latest",
     "electron": "latest",
     "electron-builder": "latest",
@@ -32,7 +33,7 @@
     ],
     "extraResources": [
       {
-        "from": "../../dist",
+        "from": "../client/dist",
         "to": "autodekt-dist"
       }
     ],

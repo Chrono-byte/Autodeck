@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "@tanstack/ai-client";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import type { Doc } from "../../convex/_generated/dataModel";
+import { api } from "@autodekt/backend/api";
+import type { Doc } from "@autodekt/backend/data-model";
 import {
   CODEX_MODELS,
   DEFAULT_CODEX_MODEL,

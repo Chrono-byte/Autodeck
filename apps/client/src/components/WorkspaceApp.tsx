@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
-import type { Doc, Id } from "../../convex/_generated/dataModel";
+import { api } from "@autodekt/backend/api";
+import type { Doc, Id } from "@autodekt/backend/data-model";
 import { authClient } from "../lib/auth-client";
 import { AuthScreen } from "./AuthScreen";
 import { DeckChat } from "./DeckChat";

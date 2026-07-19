@@ -1,9 +1,9 @@
 import { ConvexHttpClient } from "convex/browser";
-import { api } from "../../convex/_generated/api";
+import { api } from "@autodekt/backend/api";
 
 export async function authenticateConvexRequest(request: Request) {
   const authHeader = request.headers.get("authorization");
-  const convexUrl = process.env.VITE_CONVEX_URL;
+  const convexUrl = import.meta.env.VITE_CONVEX_URL;
   if (!authHeader?.startsWith("Bearer ") || !convexUrl) return null;
 
   const convex = new ConvexHttpClient(convexUrl);

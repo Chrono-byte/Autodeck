@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import type { Doc } from "../../convex/_generated/dataModel";
+import { api } from "@autodekt/backend/api";
+import type { Doc } from "@autodekt/backend/data-model";
 import { cardImageUrl } from "../lib/card-image";
 import { isManaColor, MANA_COLORS, type ManaColor } from "../lib/deck-analysis";
 import { formatMtgoDeck, mtgoExportFilename } from "../lib/mtgo-export";

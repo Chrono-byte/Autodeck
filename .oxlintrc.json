@@ -5,7 +5,7 @@
     "correctness": "error"
   },
   "rules": {},
-  "ignorePatterns": ["convex/_generated**"],
+  "ignorePatterns": ["packages/backend/convex/_generated**"],
   "env": {
     "builtin": true
   }

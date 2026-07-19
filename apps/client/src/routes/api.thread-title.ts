@@ -1,8 +1,8 @@
 import { chat } from "@tanstack/ai";
 import { openaiCompatibleText } from "@tanstack/ai-openai/compatible";
 import { createFileRoute } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "@autodekt/backend/api";
+import type { Id } from "@autodekt/backend/data-model";
 import { authenticateConvexRequest } from "../lib/convex-request-auth.server";
 import { isLoopbackRequest } from "../lib/local-request";
 import { resolveOpenAICodexCredential } from "../lib/openai-codex.server";

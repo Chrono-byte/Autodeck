@@ -1,0 +1,4 @@
+{
+  "extends": "@autodekt/config/typescript/browser.json",
+  "include": ["src", "vite.config.ts"]
+}

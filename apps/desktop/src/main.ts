@@ -13,7 +13,7 @@ const desktopDirectory = resolve(import.meta.dirname, "..");
 const workspaceDirectory = resolve(desktopDirectory, "../..");
 const applicationBuildDirectory = app.isPackaged
   ? resolve(process.resourcesPath, "autodekt-dist")
-  : resolve(workspaceDirectory, "dist");
+  : resolve(workspaceDirectory, "apps/client/dist");
 
 let clientUrl = new URL(process.env.AUTODEKT_CLIENT_URL ?? DEFAULT_CLIENT_URL);
 let mainWindow: BrowserWindow | null = null;
@@ -84,7 +84,9 @@ async function isClientReady(): Promise<boolean> {
 function startDevelopmentClient(): void {
   const isWindows = process.platform === "win32";
   const command = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pnpm";
-  const commandArguments = isWindows ? ["/d", "/s", "/c", "pnpm dev"] : ["dev"];
+  const commandArguments = isWindows
+    ? ["/d", "/s", "/c", "pnpm dev:client"]
+    : ["dev:client"];
   const childEnvironment = { ...process.env };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
 

@@ -1,0 +1,14 @@
+{
+  "name": "@autodekt/config",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "typescript"
+  ],
+  "exports": {
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/browser.json": "./typescript/browser.json",
+    "./typescript/electron.json": "./typescript/electron.json",
+    "./typescript/convex.json": "./typescript/convex.json"
+  }
+}

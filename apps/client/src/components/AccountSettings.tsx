@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
-import { api } from "../../convex/_generated/api";
+import { api } from "@autodekt/backend/api";
 import { authClient } from "../lib/auth-client";
 import {
   connectOpenAICodex,

@@ -9,33 +9,23 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiThreadTitleRouteImport } from './routes/api.thread-title'
-import { Route as ApiOpenaiCodexRouteImport } from './routes/api.openai-codex'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
-import { Route as ApiCardsResolveRouteImport } from './routes/api.cards.resolve'
-import { Route as ApiCardsImagesRouteImport } from './routes/api.cards.images'
+import { Route as ApiOpenaiCodexRouteImport } from './routes/api.openai-codex'
+import { Route as ApiThreadTitleRouteImport } from './routes/api.thread-title'
 import { Route as ApiCardsCollectionRouteImport } from './routes/api.cards.collection'
+import { Route as ApiCardsImagesRouteImport } from './routes/api.cards.images'
+import { Route as ApiCardsResolveRouteImport } from './routes/api.cards.resolve'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiThreadTitleRoute = ApiThreadTitleRouteImport.update({
-  id: '/api/thread-title',
-  path: '/api/thread-title',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiOpenaiCodexRoute = ApiOpenaiCodexRouteImport.update({
-  id: '/api/openai-codex',
-  path: '/api/openai-codex',
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiChatRoute = ApiChatRouteImport.update({
@@ -43,9 +33,19 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCardsResolveRoute = ApiCardsResolveRouteImport.update({
-  id: '/api/cards/resolve',
-  path: '/api/cards/resolve',
+const ApiOpenaiCodexRoute = ApiOpenaiCodexRouteImport.update({
+  id: '/api/openai-codex',
+  path: '/api/openai-codex',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiThreadTitleRoute = ApiThreadTitleRouteImport.update({
+  id: '/api/thread-title',
+  path: '/api/thread-title',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCardsCollectionRoute = ApiCardsCollectionRouteImport.update({
+  id: '/api/cards/collection',
+  path: '/api/cards/collection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCardsImagesRoute = ApiCardsImagesRouteImport.update({
@@ -53,9 +53,9 @@ const ApiCardsImagesRoute = ApiCardsImagesRouteImport.update({
   path: '/api/cards/images',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCardsCollectionRoute = ApiCardsCollectionRouteImport.update({
-  id: '/api/cards/collection',
-  path: '/api/cards/collection',
+const ApiCardsResolveRoute = ApiCardsResolveRouteImport.update({
+  id: '/api/cards/resolve',
+  path: '/api/cards/resolve',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -136,13 +136,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -150,18 +143,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/thread-title': {
-      id: '/api/thread-title'
-      path: '/api/thread-title'
-      fullPath: '/api/thread-title'
-      preLoaderRoute: typeof ApiThreadTitleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/openai-codex': {
-      id: '/api/openai-codex'
-      path: '/api/openai-codex'
-      fullPath: '/api/openai-codex'
-      preLoaderRoute: typeof ApiOpenaiCodexRouteImport
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/chat': {
@@ -171,11 +157,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cards/resolve': {
-      id: '/api/cards/resolve'
-      path: '/api/cards/resolve'
-      fullPath: '/api/cards/resolve'
-      preLoaderRoute: typeof ApiCardsResolveRouteImport
+    '/api/openai-codex': {
+      id: '/api/openai-codex'
+      path: '/api/openai-codex'
+      fullPath: '/api/openai-codex'
+      preLoaderRoute: typeof ApiOpenaiCodexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/thread-title': {
+      id: '/api/thread-title'
+      path: '/api/thread-title'
+      fullPath: '/api/thread-title'
+      preLoaderRoute: typeof ApiThreadTitleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cards/collection': {
+      id: '/api/cards/collection'
+      path: '/api/cards/collection'
+      fullPath: '/api/cards/collection'
+      preLoaderRoute: typeof ApiCardsCollectionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cards/images': {
@@ -185,11 +185,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCardsImagesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/cards/collection': {
-      id: '/api/cards/collection'
-      path: '/api/cards/collection'
-      fullPath: '/api/cards/collection'
-      preLoaderRoute: typeof ApiCardsCollectionRouteImport
+    '/api/cards/resolve': {
+      id: '/api/cards/resolve'
+      path: '/api/cards/resolve'
+      fullPath: '/api/cards/resolve'
+      preLoaderRoute: typeof ApiCardsResolveRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

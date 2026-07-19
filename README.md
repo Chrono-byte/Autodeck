@@ -6,15 +6,17 @@ An agentic Magic: The Gathering Commander deck research and tuning workspace bui
 
 ```bash
 pnpm install
-npx convex dev --once
+pnpm --filter @autodekt/backend dev:once
 ```
 
-The Convex command creates `.env.local`, starts a local deployment, and prompts for any initial setup it needs. In two terminals, keep the backend and app running:
+The Convex command creates `packages/backend/.env.local`, starts a local deployment, and prompts for any initial setup it needs. The client automatically maps those generated Convex URLs into its Vite environment. In two terminals, keep the backend and app running:
 
 ```bash
 pnpm dev:backend
-pnpm dev
+pnpm dev:client
 ```
+
+Alternatively, `pnpm dev` starts both workspace tasks through Turborepo.
 
 To use the client in the Electron desktop shell, keep the Convex backend running
 and launch the desktop app instead of `pnpm dev`:
@@ -24,21 +26,37 @@ pnpm dev:backend
 pnpm dev:desktop
 ```
 
-The desktop package lives at `apps/desktop`. In development it reuses the
-client at `http://localhost:3000` when one is already running; otherwise it
-starts the root TanStack app and stops that child process when Electron exits.
+The Electron package lives at `apps/desktop`. In development it reuses the
+TanStack client at `http://localhost:3000` when one is already running;
+otherwise it starts `apps/client` and stops that child process when Electron exits.
 Set `AUTODEKT_CLIENT_URL` to wrap a different local development origin without
-starting the root development server.
+starting the client development server.
 
 `pnpm dev:desktop` uses the Vite development server for HMR. The production
 desktop path does not run Vite: `pnpm start:desktop` builds once, then Electron
 serves the compiled TanStack client and server from an embedded loopback HTTP
 server. Use `pnpm package:desktop` to create the Windows installer.
 
+## Workspace layout
+
+```text
+apps/
+  client/      TanStack Start browser UI and HTTP routes
+  desktop/     Electron main process, preload bridges, and native window shell
+packages/
+  backend/     Convex schema, functions, generated bindings, and local state
+  config/      Shared TypeScript presets
+```
+
+The root package only orchestrates workspace tasks. Client code imports Convex
+bindings through `@autodekt/backend` instead of reaching across package folders.
+TypeScript presets are exported by `@autodekt/config`; repository-wide Turbo,
+Oxlint, and Oxfmt configuration remains at the workspace root.
+
 The Better Auth server expects `SITE_URL=http://localhost:3000` in the Convex deployment. Set it once if Convex did not already do so:
 
 ```bash
-npx convex env set SITE_URL http://localhost:3000
+pnpm --dir packages/backend exec convex env set SITE_URL http://localhost:3000
 ```
 
 Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The defaults point to `http://127.0.0.1:1234`; no API credential is needed. Override them with `LM_STUDIO_URL` and `LM_STUDIO_MODEL` in `.env.local` if necessary. Automatic thread titles use the model selected under **Settings → Generation**. A local selection can specify an LM Studio model identifier in the UI, or fall back to `LM_STUDIO_TEXT_MODEL`, then `LM_STUDIO_MODEL`. Sign up with any local email and password; accounts are stored in the local Convex deployment.
@@ -55,7 +73,7 @@ BRAVE_API_KEY=your-key-here
 
 ## Logging
 
-Chat and OAuth lifecycle events are emitted as structured JSON with a request ID for correlation. Prompts, authorization headers, device codes, and OAuth tokens are never intentionally logged, and known credential fields are redacted as a final safeguard. Set `LOG_LEVEL=debug`, `info`, `warn`, or `error` in `.env.local`; the default is `info`. To apply a different level to Convex OAuth logs too, set the same variable in the Convex deployment with `npx convex env set LOG_LEVEL debug`.
+Chat and OAuth lifecycle events are emitted as structured JSON with a request ID for correlation. Prompts, authorization headers, device codes, and OAuth tokens are never intentionally logged, and known credential fields are redacted as a final safeguard. Set `LOG_LEVEL=debug`, `info`, `warn`, or `error` in the root `.env.local`; the default is `info`. To apply a different level to Convex OAuth logs too, set the same variable in the Convex deployment with `pnpm --dir packages/backend exec convex env set LOG_LEVEL debug`.
 
 ## What the MVP does
 
@@ -77,6 +95,6 @@ Functional roles are deliberately overlapping and heuristic. They are evidence f
 
 ## Local rules source
 
-The repository includes Wizards of the Coast's English Comprehensive Rules PDF and matching TXT edition, effective June 19, 2026, under `src/data/mtg-rules/`. The PDF is the retained source document; the matching text edition powers deterministic lookup. The live source of truth remains [Wizards' rules page](https://magic.wizards.com/en/rules), which should be checked when refreshing these files.
+The repository includes Wizards of the Coast's English Comprehensive Rules PDF and matching TXT edition, effective June 19, 2026, under `apps/client/src/data/mtg-rules/`. The PDF is the retained source document; the matching text edition powers deterministic lookup. The live source of truth remains [Wizards' rules page](https://magic.wizards.com/en/rules), which should be checked when refreshing these files.
 
 Live guide discovery uses Brave Search, while current card text and Commander legality continue to come from Scryfall.

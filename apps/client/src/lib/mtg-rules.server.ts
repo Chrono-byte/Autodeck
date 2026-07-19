@@ -5,7 +5,7 @@ const document = parseComprehensiveRules(rulesText);
 
 export const COMPREHENSIVE_RULES_SOURCE = {
   effectiveDate: document.effectiveDate,
-  pdfFile: "src/data/mtg-rules/MagicCompRules-2026-06-19.pdf",
+  pdfFile: "apps/client/src/data/mtg-rules/MagicCompRules-2026-06-19.pdf",
   officialUrl: "https://media.wizards.com/2026/downloads/MagicCompRules%2020260619.pdf",
 };
 

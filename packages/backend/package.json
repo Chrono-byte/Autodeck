@@ -1,0 +1,34 @@
+{
+  "name": "@autodekt/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./api": {
+      "types": "./convex/_generated/api.d.ts",
+      "default": "./convex/_generated/api.js"
+    },
+    "./data-model": {
+      "types": "./convex/_generated/dataModel.d.ts"
+    }
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "dev:once": "convex dev --once",
+    "build": "tsc --project convex/tsconfig.json --noEmit",
+    "check-types": "tsc --project convex/tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@convex-dev/better-auth": "latest",
+    "better-auth": "~1.6.15",
+    "convex": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@autodekt/config": "workspace:*",
+    "@types/node": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}

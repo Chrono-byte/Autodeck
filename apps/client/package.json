@@ -1,0 +1,43 @@
+{
+  "name": "@autodekt/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build && tsc --noEmit",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@autodekt/backend": "workspace:*",
+    "@convex-dev/better-auth": "latest",
+    "@earendil-works/pi-ai": "latest",
+    "@tanstack/ai": "latest",
+    "@tanstack/ai-client": "latest",
+    "@tanstack/ai-openai": "latest",
+    "@tanstack/ai-react": "latest",
+    "@tanstack/react-router": "latest",
+    "@tanstack/react-start": "latest",
+    "better-auth": "~1.6.15",
+    "convex": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-markdown": "latest",
+    "remark-gfm": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@autodekt/config": "workspace:*",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "tailwindcss": "^4.3.3",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  }
+}
