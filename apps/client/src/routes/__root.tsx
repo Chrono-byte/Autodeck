@@ -1,4 +1,6 @@
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { APP_PREFERENCES_BOOTSTRAP_SCRIPT, initializeAppPreferences } from "../lib/app-preferences";
 import stylesheet from "../styles.css?url";
 
 export const Route = createRootRoute({
@@ -30,9 +32,12 @@ function NotFoundComponent() {
 }
 
 function RootComponent() {
+  useEffect(() => initializeAppPreferences(), []);
+
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: APP_PREFERENCES_BOOTSTRAP_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

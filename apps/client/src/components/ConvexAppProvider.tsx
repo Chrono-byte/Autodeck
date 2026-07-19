@@ -16,8 +16,8 @@ export function ConvexAppProvider({ children }: { children: ReactNode }) {
           <p className="eyebrow">BACKEND SETUP REQUIRED</p>
           <h1>Connect Autodekt to Convex</h1>
           <p>
-            Run <code>pnpm dev:backend</code>, then restart the client after Convex writes its
-            local connection details.
+            Run <code>pnpm dev:backend</code>, then restart the client after Convex writes its local
+            connection details.
           </p>
         </div>
       </main>

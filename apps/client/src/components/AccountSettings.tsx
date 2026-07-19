@@ -9,7 +9,29 @@ import {
   useOpenAICodexStatus,
 } from "../lib/openai-codex-client";
 import { clearPersistentChats } from "../lib/persistent-chat-client";
+import {
+  DEFAULT_APP_PREFERENCES,
+  DEFAULT_WORKSPACE_PREFERENCES,
+  readAppPreferences,
+  readWorkspacePreferences,
+  saveAppPreferences,
+  saveWorkspacePreferences,
+  type AppAccent,
+  type AppPreferences,
+  type AppTheme,
+  type InterfaceDensity,
+  type InterfaceScale,
+  type WorkspacePreferences,
+} from "../lib/app-preferences";
 import { AuthScreen } from "./AuthScreen";
+
+const settingsSections = [
+  "account",
+  "appearance",
+  "workspace",
+  "generation",
+  "connections",
+] as const;
 
 export function AccountSettings() {
   return (
@@ -32,6 +54,31 @@ export function AccountSettings() {
 
 function SettingsPage() {
   const user = useQuery(api.auth.getCurrentUser);
+  const [activeSection, setActiveSection] = useState<(typeof settingsSections)[number]>("account");
+
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>(".settings-page");
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+        if (
+          visible?.target.id &&
+          settingsSections.includes(visible.target.id as (typeof settingsSections)[number])
+        ) {
+          setActiveSection(visible.target.id as (typeof settingsSections)[number]);
+        }
+      },
+      { root, rootMargin: "-72px 0px -55%", threshold: [0, 0.2, 0.8] },
+    );
+    for (const section of settingsSections) {
+      const element = document.getElementById(section);
+      if (element) observer.observe(element);
+    }
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <main className="settings-page">
@@ -47,17 +94,22 @@ function SettingsPage() {
       <div className="settings-shell">
         <aside className="settings-nav">
           <p className="eyebrow">SETTINGS</p>
-          <a href="#account" className="active">
-            Account
-          </a>
-          <a href="#generation">Generation</a>
-          <a href="#connections">Connections</a>
+          {settingsSections.map((section) => (
+            <a
+              href={`#${section}`}
+              className={activeSection === section ? "active" : ""}
+              key={section}
+              onClick={() => setActiveSection(section)}
+            >
+              {section[0].toUpperCase() + section.slice(1)}
+            </a>
+          ))}
         </aside>
         <section className="settings-content">
           <div className="settings-title">
             <p className="eyebrow">YOUR AUTODEKT</p>
             <h1>Account settings</h1>
-            <p>Manage your profile, connected models, and account access.</p>
+            <p>Shape the workspace, generation defaults, connections, and account access.</p>
           </div>
 
           <section className="settings-section" id="account">
@@ -84,6 +136,22 @@ function SettingsPage() {
             </div>
           </section>
 
+          <section className="settings-section" id="appearance">
+            <div className="settings-section-heading">
+              <h2>Appearance</h2>
+              <p>Choose how Autodekt looks and feels on this device.</p>
+            </div>
+            <AppearanceSettings />
+          </section>
+
+          <section className="settings-section" id="workspace">
+            <div className="settings-section-heading">
+              <h2>Workspace</h2>
+              <p>Set the layout Autodekt restores when you open a deck.</p>
+            </div>
+            <WorkspaceSettings />
+          </section>
+
           <section className="settings-section" id="generation">
             <div className="settings-section-heading">
               <h2>Text generation</h2>
@@ -102,6 +170,211 @@ function SettingsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+const themeChoices: ReadonlyArray<{ value: AppTheme; label: string; detail: string }> = [
+  { value: "system", label: "System", detail: "Follow Windows" },
+  { value: "light", label: "Light", detail: "Bright canvas" },
+  { value: "dark", label: "Dark", detail: "Low-light workspace" },
+];
+
+const accentChoices: ReadonlyArray<{ value: AppAccent; label: string }> = [
+  { value: "forest", label: "Forest" },
+  { value: "blue", label: "Blue" },
+  { value: "violet", label: "Violet" },
+  { value: "ember", label: "Ember" },
+];
+
+function AppearanceSettings() {
+  const [preferences, setPreferences] = useState<AppPreferences>(readAppPreferences);
+
+  const update = (change: Partial<AppPreferences>) => {
+    setPreferences((current) => saveAppPreferences({ ...current, ...change }));
+  };
+
+  return (
+    <div className="settings-card preference-settings-card">
+      <div className="preference-block">
+        <div className="preference-copy">
+          <strong>Theme</strong>
+          <span>Follow your system or keep this app in one mode.</span>
+        </div>
+        <div className="theme-choice-grid" role="radiogroup" aria-label="Application theme">
+          {themeChoices.map((choice) => (
+            <label
+              className={preferences.theme === choice.value ? "selected" : ""}
+              key={choice.value}
+            >
+              <input
+                type="radio"
+                name="app-theme"
+                value={choice.value}
+                data-testid={`theme-${choice.value}`}
+                checked={preferences.theme === choice.value}
+                onChange={() => update({ theme: choice.value })}
+              />
+              <span className={`theme-preview theme-preview-${choice.value}`} aria-hidden="true">
+                <i />
+                <b />
+              </span>
+              <strong>{choice.label}</strong>
+              <small>{choice.detail}</small>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="preference-row">
+        <div className="preference-copy">
+          <strong>Accent color</strong>
+          <span>Used for focus, primary actions, and active controls.</span>
+        </div>
+        <div className="accent-choices" role="radiogroup" aria-label="Accent color">
+          {accentChoices.map((choice) => (
+            <label
+              className={`accent-${choice.value} ${preferences.accent === choice.value ? "selected" : ""}`}
+              title={choice.label}
+              key={choice.value}
+            >
+              <input
+                type="radio"
+                name="app-accent"
+                value={choice.value}
+                data-testid={`accent-${choice.value}`}
+                checked={preferences.accent === choice.value}
+                onChange={() => update({ accent: choice.value })}
+              />
+              <span aria-hidden="true" />
+              <span className="sr-only">{choice.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <label className="preference-row">
+        <span className="preference-copy">
+          <strong>Interface density</strong>
+          <span>Compact mode fits more decks and messages on screen.</span>
+        </span>
+        <select
+          data-testid="interface-density"
+          value={preferences.density}
+          onChange={(event) => update({ density: event.target.value as InterfaceDensity })}
+        >
+          <option value="comfortable">Comfortable</option>
+          <option value="compact">Compact</option>
+        </select>
+      </label>
+
+      <label className="preference-row">
+        <span className="preference-copy">
+          <strong>Interface scale</strong>
+          <span>Adjust text and controls throughout the application.</span>
+        </span>
+        <select
+          data-testid="interface-scale"
+          value={preferences.scale}
+          onChange={(event) => update({ scale: event.target.value as InterfaceScale })}
+        >
+          <option value="small">Small · 90%</option>
+          <option value="default">Default · 100%</option>
+          <option value="large">Large · 112%</option>
+        </select>
+      </label>
+
+      <label className="preference-row preference-toggle-row">
+        <span className="preference-copy">
+          <strong>Reduce motion</strong>
+          <span>Minimize transitions and animated status indicators.</span>
+        </span>
+        <input
+          type="checkbox"
+          data-testid="reduce-motion"
+          checked={preferences.reduceMotion}
+          onChange={(event) => update({ reduceMotion: event.target.checked })}
+        />
+      </label>
+
+      <div className="settings-card-footer">
+        <span>Appearance preferences are stored on this device.</span>
+        <button
+          type="button"
+          className="secondary-settings-button"
+          onClick={() => setPreferences(saveAppPreferences(DEFAULT_APP_PREFERENCES))}
+        >
+          Reset appearance
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceSettings() {
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(readWorkspacePreferences);
+
+  const update = (change: Partial<WorkspacePreferences>) => {
+    setPreferences((current) => saveWorkspacePreferences({ ...current, ...change }));
+  };
+
+  return (
+    <div className="settings-card preference-settings-card">
+      <label className="preference-row preference-toggle-row">
+        <span className="preference-copy">
+          <strong>Open the sidebar</strong>
+          <span>Show decks and threads when the workspace opens.</span>
+        </span>
+        <input
+          type="checkbox"
+          data-testid="workspace-sidebar"
+          checked={preferences.sidebarOpen}
+          onChange={(event) => update({ sidebarOpen: event.target.checked })}
+        />
+      </label>
+
+      <label className="preference-row preference-toggle-row">
+        <span className="preference-copy">
+          <strong>Open the deck editor</strong>
+          <span>Restore the deck pane beside chat when a deck opens.</span>
+        </span>
+        <input
+          type="checkbox"
+          data-testid="workspace-deck-editor"
+          checked={preferences.deckEditorOpen}
+          onChange={(event) => update({ deckEditorOpen: event.target.checked })}
+        />
+      </label>
+
+      <label className="preference-row split-preference-row">
+        <span className="preference-copy">
+          <strong>Default pane balance</strong>
+          <span>Choose how much horizontal space chat receives.</span>
+        </span>
+        <span className="range-control">
+          <input
+            type="range"
+            data-testid="workspace-chat-split"
+            min="25"
+            max="75"
+            step="1"
+            value={preferences.chatSplit}
+            onChange={(event) => update({ chatSplit: Number(event.target.value) })}
+          />
+          <output>{preferences.chatSplit}% chat</output>
+        </span>
+      </label>
+
+      <div className="settings-card-footer">
+        <span>Layout changes apply when you return to the workspace.</span>
+        <button
+          type="button"
+          className="secondary-settings-button"
+          onClick={() => setPreferences(saveWorkspacePreferences(DEFAULT_WORKSPACE_PREFERENCES))}
+        >
+          Reset layout
+        </button>
+      </div>
+    </div>
   );
 }
 

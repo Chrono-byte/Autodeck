@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { api } from "@autodekt/backend/api";
 import type { Doc, Id } from "@autodekt/backend/data-model";
 import { authClient } from "../lib/auth-client";
+import { readWorkspacePreferences } from "../lib/app-preferences";
 import { AuthScreen } from "./AuthScreen";
 import { DeckChat } from "./DeckChat";
 import { DeckEditor } from "./DeckEditor";
@@ -171,11 +172,14 @@ function AuthenticatedWorkspace() {
   const [threadId, setThreadId] = useState<Id<"threads"> | null>(null);
   const [creatingDeck, setCreatingDeck] = useState(false);
   const [deckName, setDeckName] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [chatSplit, setChatSplit] = useState(42);
+  const [initialWorkspacePreferences] = useState(readWorkspacePreferences);
+  const [sidebarOpen, setSidebarOpen] = useState(initialWorkspacePreferences.sidebarOpen);
+  const [chatSplit, setChatSplit] = useState(initialWorkspacePreferences.chatSplit);
   const [resizingWorkspace, setResizingWorkspace] = useState(false);
   const [deckPanelOpen, setDeckPanelOpen] = useState(false);
-  const [deckEditorCollapsed, setDeckEditorCollapsed] = useState(false);
+  const [deckEditorCollapsed, setDeckEditorCollapsed] = useState(
+    !initialWorkspacePreferences.deckEditorOpen,
+  );
   const [expandedDeckIds, setExpandedDeckIds] = useState<Set<string>>(() => new Set());
   const [threadMenu, setThreadMenu] = useState<{
     thread: Doc<"threads">;
@@ -202,15 +206,6 @@ function AuthenticatedWorkspace() {
       document.removeEventListener("keydown", closeOnEscape);
     };
   }, [threadMenu]);
-
-  useEffect(() => {
-    const saved = Number(window.localStorage.getItem("autodekt:workspace-chat-split"));
-    if (Number.isFinite(saved) && saved >= 20 && saved <= 80) setChatSplit(saved);
-    setSidebarOpen(window.localStorage.getItem("autodekt:sidebar-open") !== "false");
-    setDeckEditorCollapsed(
-      window.localStorage.getItem("autodekt:deck-editor-collapsed") === "true",
-    );
-  }, []);
 
   useEffect(() => {
     const toggleSidebar = () => setSidebarOpen((current) => !current);

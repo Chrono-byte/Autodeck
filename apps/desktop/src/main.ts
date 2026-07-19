@@ -84,9 +84,7 @@ async function isClientReady(): Promise<boolean> {
 function startDevelopmentClient(): void {
   const isWindows = process.platform === "win32";
   const command = isWindows ? (process.env.ComSpec ?? "cmd.exe") : "pnpm";
-  const commandArguments = isWindows
-    ? ["/d", "/s", "/c", "pnpm dev:client"]
-    : ["dev:client"];
+  const commandArguments = isWindows ? ["/d", "/s", "/c", "pnpm dev:client"] : ["dev:client"];
   const childEnvironment = { ...process.env };
   delete childEnvironment.ELECTRON_RUN_AS_NODE;
 
