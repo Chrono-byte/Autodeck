@@ -21,6 +21,7 @@
     "@tanstack/react-start": "latest",
     "better-auth": "~1.6.15",
     "convex": "latest",
+    "lucide-react": "^1.25.0",
     "react": "latest",
     "react-dom": "latest",
     "react-markdown": "latest",

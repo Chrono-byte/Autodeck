@@ -29,4 +29,14 @@ describe("Codex app-server conversation input", () => {
       ]),
     ).toBe("");
   });
+
+  it("ignores incomplete message snapshots left by an interrupted stream", () => {
+    expect(
+      codexConversationInput([
+        { id: "user-1", role: "user", parts: [{ type: "text", content: "First request" }] },
+        { id: "assistant-interrupted", role: "assistant" },
+        { id: "user-2", role: "user", parts: [{ type: "text", content: "Queued follow-up" }] },
+      ]),
+    ).toBe("USER:\nFirst request\n\nUSER:\nQueued follow-up");
+  });
 });

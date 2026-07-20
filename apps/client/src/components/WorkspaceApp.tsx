@@ -1,6 +1,17 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
+import {
+  Archive,
+  ChevronLeft,
+  ChevronRight,
+  Folder,
+  Menu,
+  MoreHorizontal,
+  Pin,
+  Plus,
+  Settings,
+} from "lucide-react";
 import { api } from "@autodekt/backend/api";
 import type { Doc, Id } from "@autodekt/backend/data-model";
 import { authClient } from "../lib/auth-client";
@@ -18,44 +29,12 @@ declare global {
   }
 }
 
-function PlusIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M8 3.25v9.5M3.25 8h9.5" />
-    </svg>
-  );
-}
-
-function FolderIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M1.75 4.5c0-.97.78-1.75 1.75-1.75h2.2l1.35 1.5h5.45c.97 0 1.75.78 1.75 1.75v5.75c0 .83-.67 1.5-1.5 1.5H3.25c-.83 0-1.5-.67-1.5-1.5V4.5Z" />
-    </svg>
-  );
-}
-
 function ChevronIcon({ expanded }: { expanded: boolean }) {
-  return (
-    <svg className={expanded ? "expanded" : ""} viewBox="0 0 16 16" aria-hidden="true">
-      <path d="m6 4 4 4-4 4" />
-    </svg>
-  );
+  return <ChevronRight className={expanded ? "expanded" : ""} aria-hidden="true" />;
 }
 
 function PinIcon({ filled = false }: { filled?: boolean }) {
-  return (
-    <svg className={filled ? "filled" : ""} viewBox="0 0 16 16" aria-hidden="true">
-      <path d="m5.1 2.25 5.65 5.65-1.7.35-1.8 1.8.5 2.2-.7.7-4-4 .7-.7 2.2.5 1.8-1.8.35-1.7L5.1 2.25ZM3.9 12.1l-1.65 1.65" />
-    </svg>
-  );
-}
-
-function ArchiveIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M2.25 4.5h11.5v8.25c0 .55-.45 1-1 1h-9.5c-.55 0-1-.45-1-1V4.5Zm-.5-2.25h12.5v2.5H1.75v-2.5ZM6 7.25h4" />
-    </svg>
-  );
+  return <Pin className={filled ? "filled" : ""} aria-hidden="true" />;
 }
 
 function SidebarThreadList({
@@ -89,7 +68,7 @@ function SidebarThreadList({
             onOpenMenu(
               thread,
               Math.max(8, Math.min(event.clientX, window.innerWidth - 210)),
-              Math.max(8, Math.min(event.clientY, window.innerHeight - 190)),
+              Math.max(8, Math.min(event.clientY, window.innerHeight - 205)),
             );
           }}
         >
@@ -105,7 +84,7 @@ function SidebarThreadList({
               onOpenMenu(
                 thread,
                 Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 210)),
-                Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 190)),
+                Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 205)),
               );
             }}
             aria-haspopup="menu"
@@ -130,13 +109,28 @@ function SidebarThreadList({
               disabled={generatingTitleId === thread._id}
               onClick={() => onArchive(thread._id)}
             >
-              <ArchiveIcon />
+              <Archive aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              title="More thread actions"
+              aria-label={`More actions for ${thread.title}`}
+              onClick={(event) => {
+                const bounds = event.currentTarget.getBoundingClientRect();
+                onOpenMenu(
+                  thread,
+                  Math.max(8, Math.min(bounds.right - 200, window.innerWidth - 210)),
+                  Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 205)),
+                );
+              }}
+            >
+              <MoreHorizontal aria-hidden="true" />
             </button>
           </div>
         </div>
       ))}
       <button className="add-thread" onClick={onStart}>
-        <PlusIcon /> New thread
+        <Plus aria-hidden="true" /> New thread
       </button>
     </div>
   );
@@ -165,9 +159,13 @@ function AuthenticatedWorkspace() {
   const decks = useQuery(api.decks.list);
   const user = useQuery(api.auth.getCurrentUser);
   const createDeck = useMutation(api.decks.create);
+  const updateDeck = useMutation(api.decks.update);
+  const removeDeck = useMutation(api.decks.remove);
   const createThread = useMutation(api.threads.create);
+  const renameThread = useMutation(api.threads.rename);
   const setThreadPinned = useMutation(api.threads.setPinned);
   const archiveThread = useMutation(api.threads.archive);
+  const archiveAllThreads = useMutation(api.threads.archiveAllForDeck);
   const [deckId, setDeckId] = useState<Id<"decks"> | null>(null);
   const [threadId, setThreadId] = useState<Id<"threads"> | null>(null);
   const [creatingDeck, setCreatingDeck] = useState(false);
@@ -186,18 +184,32 @@ function AuthenticatedWorkspace() {
     x: number;
     y: number;
   } | null>(null);
+  const [deckMenu, setDeckMenu] = useState<{
+    deck: Doc<"decks">;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [renameDialog, setRenameDialog] = useState<{
+    target: { kind: "deck"; item: Doc<"decks"> } | { kind: "thread"; item: Doc<"threads"> };
+    name: string;
+  } | null>(null);
+  const [savingName, setSavingName] = useState(false);
   const [generatingTitleId, setGeneratingTitleId] = useState<Id<"threads"> | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   const workspaceColumnsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!threadMenu) return;
+    if (!threadMenu && !deckMenu) return;
     const close = (event: PointerEvent) => {
       const target = event.target;
       if (target instanceof Element && target.closest(".thread-context-menu")) return;
       setThreadMenu(null);
+      setDeckMenu(null);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setThreadMenu(null);
+      if (event.key !== "Escape") return;
+      setThreadMenu(null);
+      setDeckMenu(null);
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", closeOnEscape);
@@ -205,7 +217,21 @@ function AuthenticatedWorkspace() {
       document.removeEventListener("pointerdown", close);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [threadMenu]);
+  }, [deckMenu, threadMenu]);
+
+  useEffect(() => {
+    if (!deckMenu && !threadMenu) return;
+    contextMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+  }, [deckMenu, threadMenu]);
+
+  useEffect(() => {
+    if (!renameDialog) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !savingName) setRenameDialog(null);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [renameDialog, savingName]);
 
   useEffect(() => {
     const toggleSidebar = () => setSidebarOpen((current) => !current);
@@ -274,6 +300,60 @@ function AuthenticatedWorkspace() {
     setThreadId(created);
   };
 
+  const renameDeck = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!renameDialog) return;
+    const name = renameDialog.name.trim();
+    if (!name) return;
+    const currentName =
+      renameDialog.target.kind === "deck"
+        ? renameDialog.target.item.name
+        : renameDialog.target.item.title;
+    if (name === currentName) {
+      setRenameDialog(null);
+      return;
+    }
+    setSavingName(true);
+    try {
+      if (renameDialog.target.kind === "deck") {
+        await updateDeck({ deckId: renameDialog.target.item._id, name });
+      } else {
+        await renameThread({ threadId: renameDialog.target.item._id, title: name });
+      }
+      setRenameDialog(null);
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const archiveDeckThreads = async (targetDeck: Doc<"decks">) => {
+    const confirmed = window.confirm(
+      `Archive every thread in “${targetDeck.name}”? The project and its cards will be kept.`,
+    );
+    if (!confirmed) return;
+    if (deckId === targetDeck._id) setThreadId(null);
+    setDeckMenu(null);
+    await archiveAllThreads({ deckId: targetDeck._id });
+  };
+
+  const deleteDeck = async (targetDeck: Doc<"decks">) => {
+    const confirmed = window.confirm(
+      `Delete “${targetDeck.name}” permanently? This removes its threads, messages, and cards and cannot be undone.`,
+    );
+    if (!confirmed) return;
+    setDeckMenu(null);
+    if (deckId === targetDeck._id) {
+      setDeckId(decks?.find((item) => item._id !== targetDeck._id)?._id ?? null);
+      setThreadId(null);
+    }
+    setExpandedDeckIds((current) => {
+      const next = new Set(current);
+      next.delete(String(targetDeck._id));
+      return next;
+    });
+    await removeDeck({ deckId: targetDeck._id });
+  };
+
   const resizeWorkspace = (clientX: number) => {
     const container = workspaceColumnsRef.current;
     if (!container) return;
@@ -322,13 +402,19 @@ function AuthenticatedWorkspace() {
         <header className="sidebar-brand">
           <div className="brand-mark">A</div>
           <strong>Autodekt</strong>
-          <button onClick={() => setSidebarOpen(false)}>‹</button>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+          >
+            <ChevronLeft aria-hidden="true" />
+          </button>
         </header>
         <button
           className="new-deck-button"
           onClick={() => (deckId ? void startThread(deckId) : setCreatingDeck(true))}
         >
-          <PlusIcon /> {deckId ? "New thread" : "New deck"}
+          <Plus aria-hidden="true" /> {deckId ? "New thread" : "New deck"}
         </button>
         {creatingDeck && (
           <div className="inline-create">
@@ -353,20 +439,43 @@ function AuthenticatedWorkspace() {
               title="New deck"
               aria-label="New deck"
             >
-              <PlusIcon />
+              <Plus aria-hidden="true" />
             </button>
           </div>
           {decks?.map((item) => (
             <div className="deck-nav-group" key={item._id}>
-              <div className={`deck-folder-row ${item._id === deckId ? "active" : ""}`}>
+              <div
+                className={`deck-folder-row ${item._id === deckId ? "active" : ""}`}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setThreadMenu(null);
+                  setDeckMenu({
+                    deck: item,
+                    x: Math.max(8, Math.min(event.clientX, window.innerWidth - 210)),
+                    y: Math.max(8, Math.min(event.clientY, window.innerHeight - 220)),
+                  });
+                }}
+              >
                 <button
                   type="button"
                   className="deck-folder-toggle"
                   aria-expanded={expandedDeckIds.has(String(item._id))}
                   onClick={() => toggleDeck(item._id)}
+                  onKeyDown={(event) => {
+                    if (!(event.shiftKey && event.key === "F10")) return;
+                    event.preventDefault();
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    setThreadMenu(null);
+                    setDeckMenu({
+                      deck: item,
+                      x: Math.max(8, Math.min(bounds.left + 24, window.innerWidth - 210)),
+                      y: Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 220)),
+                    });
+                  }}
+                  aria-haspopup="menu"
                 >
                   <ChevronIcon expanded={expandedDeckIds.has(String(item._id))} />
-                  <FolderIcon />
+                  <Folder aria-hidden="true" />
                   <span>{item.name}</span>
                 </button>
                 <button
@@ -376,7 +485,24 @@ function AuthenticatedWorkspace() {
                   aria-label={`New thread in ${item.name}`}
                   onClick={() => void startThread(item._id)}
                 >
-                  <PlusIcon />
+                  <Plus aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="deck-folder-add"
+                  title={`More actions for ${item.name}`}
+                  aria-label={`More actions for ${item.name}`}
+                  onClick={(event) => {
+                    const bounds = event.currentTarget.getBoundingClientRect();
+                    setThreadMenu(null);
+                    setDeckMenu({
+                      deck: item,
+                      x: Math.max(8, Math.min(bounds.right - 200, window.innerWidth - 210)),
+                      y: Math.max(8, Math.min(bounds.bottom + 4, window.innerHeight - 220)),
+                    });
+                  }}
+                >
+                  <MoreHorizontal aria-hidden="true" />
                 </button>
               </div>
               {expandedDeckIds.has(String(item._id)) && (
@@ -399,7 +525,10 @@ function AuthenticatedWorkspace() {
                     if (threadId === nextThreadId) setThreadId(null);
                     void archiveThread({ threadId: nextThreadId });
                   }}
-                  onOpenMenu={(threadItem, x, y) => setThreadMenu({ thread: threadItem, x, y })}
+                  onOpenMenu={(threadItem, x, y) => {
+                    setDeckMenu(null);
+                    setThreadMenu({ thread: threadItem, x, y });
+                  }}
                 />
               )}
             </div>
@@ -413,18 +542,125 @@ function AuthenticatedWorkspace() {
               <strong>{user?.name ?? "Brewer"}</strong>
               <small>{user?.email}</small>
             </span>
-            <b aria-hidden="true">⚙</b>
+            <Settings aria-hidden="true" />
           </Link>
         </footer>
       </aside>
+      {deckMenu && (
+        <div
+          className="thread-context-menu deck-context-menu"
+          ref={contextMenuRef}
+          role="menu"
+          aria-label={`Actions for ${deckMenu.deck.name}`}
+          style={{ left: deckMenu.x, top: deckMenu.y }}
+        >
+          <p>{deckMenu.deck.name}</p>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void startThread(deckMenu.deck._id);
+              setDeckMenu(null);
+            }}
+          >
+            New thread
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setRenameDialog({
+                target: { kind: "deck", item: deckMenu.deck },
+                name: deckMenu.deck.name,
+              });
+              setDeckMenu(null);
+            }}
+          >
+            Rename project…
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void archiveDeckThreads(deckMenu.deck)}
+          >
+            Archive all threads…
+          </button>
+          <div className="thread-context-separator" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            className="danger"
+            onClick={() => void deleteDeck(deckMenu.deck)}
+          >
+            Delete project…
+          </button>
+        </div>
+      )}
+      {renameDialog && (
+        <div
+          className="rename-dialog-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !savingName) setRenameDialog(null);
+          }}
+        >
+          <form
+            className="rename-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-item-title"
+            onSubmit={(event) => void renameDeck(event)}
+          >
+            <h2 id="rename-item-title">
+              Rename {renameDialog.target.kind === "deck" ? "project" : "thread"}
+            </h2>
+            <label htmlFor="rename-item-name">
+              {renameDialog.target.kind === "deck" ? "Project" : "Thread"} name
+            </label>
+            <input
+              id="rename-item-name"
+              autoFocus
+              value={renameDialog.name}
+              disabled={savingName}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) =>
+                setRenameDialog((current) =>
+                  current ? { ...current, name: event.target.value } : current,
+                )
+              }
+            />
+            <div className="rename-dialog-actions">
+              <button type="button" disabled={savingName} onClick={() => setRenameDialog(null)}>
+                Cancel
+              </button>
+              <button type="submit" disabled={savingName || !renameDialog.name.trim()}>
+                {savingName ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       {threadMenu && (
         <div
           className="thread-context-menu"
+          ref={contextMenuRef}
           role="menu"
           aria-label={`Actions for ${threadMenu.thread.title}`}
           style={{ left: threadMenu.x, top: threadMenu.y }}
         >
           <p>{threadMenu.thread.title}</p>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setRenameDialog({
+                target: { kind: "thread", item: threadMenu.thread },
+                name: threadMenu.thread.title,
+              });
+              setThreadMenu(null);
+            }}
+          >
+            Rename thread…
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -446,17 +682,7 @@ function AuthenticatedWorkspace() {
           >
             {threadMenu.thread.pinned ? "Unpin thread" : "Pin thread"}
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => {
-              void startThread(threadMenu.thread.deckId);
-              setThreadMenu(null);
-            }}
-          >
-            New thread in deck
-          </button>
-          <div className="thread-context-separator" />
+          <div className="thread-context-separator" role="separator" />
           <button
             type="button"
             role="menuitem"
@@ -472,8 +698,13 @@ function AuthenticatedWorkspace() {
         </div>
       )}
       {!sidebarOpen && (
-        <button className="open-sidebar" onClick={() => setSidebarOpen(true)}>
-          ☰
+        <button
+          className="open-sidebar"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Show sidebar"
+          title="Show sidebar"
+        >
+          <Menu aria-hidden="true" />
         </button>
       )}
       {deck && thread && cards ? (

@@ -1,18 +1,48 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { MessagePart, ToolCallPart, ToolResultPart, UIMessage } from "@tanstack/ai";
 import ReactMarkdown, { type Components } from "react-markdown";
+import {
+  BookOpenCheck,
+  ChartNoAxesColumn,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  CircleCheck,
+  Copy,
+  CornerDownRight,
+  Diamond,
+  Globe2,
+  List,
+  RotateCcw,
+  Search,
+  Sparkles,
+  WandSparkles,
+  type LucideIcon,
+} from "lucide-react";
 import remarkGfm from "remark-gfm";
 import { remarkManaSymbols } from "../lib/mana-markdown";
 import { ManaSymbol } from "./ManaSymbol";
 
-const TOOL_LABELS: Record<string, { active: string; complete: string; icon: string }> = {
-  get_card: { active: "Looking up card", complete: "Looked up card", icon: "◇" },
-  search_cards: { active: "Searching cards", complete: "Searched cards", icon: "⌕" },
-  analyze_deck: { active: "Analyzing deck", complete: "Analyzed deck", icon: "◫" },
-  comprehensive_rules: { active: "Checking rules", complete: "Checked rules", icon: "§" },
-  brave_search: { active: "Researching the web", complete: "Researched the web", icon: "◎" },
-  get_active_deck: { active: "Reading deck", complete: "Read deck", icon: "▤" },
-  edit_active_deck: { active: "Updating deck", complete: "Updated deck", icon: "✦" },
+const TOOL_LABELS: Record<string, { active: string; complete: string; icon: LucideIcon }> = {
+  get_card: { active: "Looking up card", complete: "Looked up card", icon: Diamond },
+  search_cards: { active: "Searching cards", complete: "Searched cards", icon: Search },
+  analyze_deck: {
+    active: "Analyzing deck",
+    complete: "Analyzed deck",
+    icon: ChartNoAxesColumn,
+  },
+  comprehensive_rules: {
+    active: "Checking rules",
+    complete: "Checked rules",
+    icon: BookOpenCheck,
+  },
+  brave_search: { active: "Researching the web", complete: "Researched the web", icon: Globe2 },
+  get_active_deck: { active: "Reading deck", complete: "Read deck", icon: List },
+  edit_active_deck: {
+    active: "Updating deck",
+    complete: "Updated deck",
+    icon: WandSparkles,
+  },
 };
 
 function displayName(name: string) {
@@ -82,14 +112,10 @@ function Reasoning({ content, streaming }: { content: string; streaming: boolean
   return (
     <details className={`reasoning-trace ${streaming ? "streaming" : ""}`} open={streaming}>
       <summary>
-        <span className="reasoning-spark" aria-hidden="true">
-          ✦
-        </span>
+        <Sparkles className="reasoning-spark" aria-hidden="true" />
         <span>{streaming ? "Thinking" : "Reasoning"}</span>
         {streaming && <span className="reasoning-live">Live</span>}
-        <span className="disclosure-arrow" aria-hidden="true">
-          ⌄
-        </span>
+        <ChevronDown className="disclosure-arrow" aria-hidden="true" />
       </summary>
       <div className="reasoning-content">
         <Markdown>{content}</Markdown>
@@ -112,6 +138,7 @@ function ToolCall({
   const complete = part.state === "complete" || result?.state === "complete";
   const active = messageStreaming && !complete && !failed;
   const labels = TOOL_LABELS[part.name];
+  const ToolIcon = labels?.icon ?? CornerDownRight;
   const title = labels ? (active ? labels.active : labels.complete) : displayName(part.name);
   const input = safeJson(part.input ?? part.arguments);
   const output = contentOf(result) || safeJson(part.output);
@@ -120,16 +147,18 @@ function ToolCall({
   return (
     <details className={`tool-call ${active ? "active" : ""} ${failed ? "failed" : ""}`}>
       <summary>
-        <span className="tool-icon" aria-hidden="true">
-          {labels?.icon ?? "↳"}
-        </span>
+        <ToolIcon className="tool-icon" aria-hidden="true" />
         <span className="tool-title">{failed ? `${title} failed` : title}</span>
         <span className="tool-state">
-          {active ? <span className="tool-spinner" /> : failed ? "!" : "✓"}
+          {active ? (
+            <span className="tool-spinner" />
+          ) : failed ? (
+            <CircleAlert aria-label="Failed" />
+          ) : (
+            <CircleCheck aria-label="Complete" />
+          )}
         </span>
-        <span className="disclosure-arrow" aria-hidden="true">
-          ⌄
-        </span>
+        <ChevronDown className="disclosure-arrow" aria-hidden="true" />
       </summary>
       <div className="tool-details">
         {input && (
@@ -249,7 +278,8 @@ export function ChatMessage({
               aria-label="Copy response"
               title="Copy response"
             >
-              {copied ? "✓ Copied" : "▢ Copy"}
+              {copied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+              {copied ? "Copied" : "Copy"}
             </button>
             {canRetry && (
               <details
@@ -268,10 +298,8 @@ export function ChatMessage({
                 }}
               >
                 <summary aria-label={`Retry response with ${retryModelLabel}`}>
-                  <span aria-hidden="true">↻</span> Retry with {retryModelLabel}
-                  <span className="selector-chevron" aria-hidden="true">
-                    ⌄
-                  </span>
+                  <RotateCcw aria-hidden="true" /> Retry with {retryModelLabel}
+                  <ChevronDown className="selector-chevron" aria-hidden="true" />
                 </summary>
                 <div className="retry-model-menu" role="menu">
                   <p>Retry response with</p>
@@ -288,7 +316,7 @@ export function ChatMessage({
                       }}
                     >
                       <span>{model.label}</span>
-                      <span>{model.label === retryModelLabel ? "✓" : ""}</span>
+                      <span>{model.label === retryModelLabel && <Check aria-hidden="true" />}</span>
                     </button>
                   ))}
                 </div>

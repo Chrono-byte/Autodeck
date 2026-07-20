@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { UIMessage } from "@tanstack/ai-client";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import {
+  ArrowDown,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  SendHorizontal,
+  Square,
+  X,
+} from "lucide-react";
 import { api } from "@autodekt/backend/api";
 import type { Doc } from "@autodekt/backend/data-model";
 import {
@@ -99,6 +108,7 @@ export function DeckChat({
   const [selectorPanel, setSelectorPanel] = useState<SelectorPanel>("root");
   const [showJumpToTurn, setShowJumpToTurn] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
+  const submenuRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const messagesContentRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -177,6 +187,27 @@ export function DeckChat({
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [selectorOpen]);
+
+  useLayoutEffect(() => {
+    const submenu = submenuRef.current;
+    if (!submenu || selectorPanel === "root") return;
+
+    const fitSubmenuToViewport = () => {
+      submenu.style.removeProperty("--submenu-viewport-shift");
+      const bounds = submenu.getBoundingClientRect();
+      const rightOverflow = Math.max(0, bounds.right - (window.innerWidth - 8));
+      const availableShift = Math.max(0, bounds.left - 8);
+      const shift = Math.min(rightOverflow, availableShift);
+      submenu.style.setProperty("--submenu-viewport-shift", `${shift}px`);
+    };
+
+    fitSubmenuToViewport();
+    window.addEventListener("resize", fitSubmenuToViewport);
+    return () => {
+      window.removeEventListener("resize", fitSubmenuToViewport);
+      submenu.style.removeProperty("--submenu-viewport-shift");
+    };
+  }, [selectorPanel]);
 
   const selectedModel = codexStatus?.connected ? modelChoice : "local";
   const chat = usePersistentChat({
@@ -514,7 +545,7 @@ export function DeckChat({
                       aria-label={`Remove queued message: ${message.content}`}
                       title="Remove from queue"
                     >
-                      ×
+                      <X aria-hidden="true" />
                     </button>
                   </div>
                 </li>
@@ -524,7 +555,7 @@ export function DeckChat({
         )}
         {showJumpToTurn && (
           <button type="button" className="jump-to-turn" onClick={jumpToCurrentTurn}>
-            <span aria-hidden="true">↓</span> Jump to current turn
+            <ArrowDown aria-hidden="true" /> Jump to current turn
           </button>
         )}
         <form
@@ -561,36 +592,52 @@ export function DeckChat({
                   aria-expanded={selectorOpen}
                 >
                   <span>{activeModelLabel}</span>
-                  <span className="selector-chevron">⌄</span>
+                  <ChevronDown className="selector-chevron" aria-hidden="true" />
                 </button>
                 {selectorOpen && (
                   <div className="model-selector-menu" role="menu">
                     <button
                       type="button"
                       className={selectorPanel === "model" ? "active" : ""}
-                      onClick={() => setSelectorPanel("model")}
+                      onClick={() =>
+                        setSelectorPanel((panel) => (panel === "model" ? "root" : "model"))
+                      }
                     >
                       <span>Model</span>
-                      <span>{modelLabel}　›</span>
+                      <span>
+                        {modelLabel} <ChevronRight aria-hidden="true" />
+                      </span>
                     </button>
                     <button
                       type="button"
                       className={selectorPanel === "effort" ? "active" : ""}
-                      onClick={() => setSelectorPanel("effort")}
+                      onClick={() =>
+                        setSelectorPanel((panel) => (panel === "effort" ? "root" : "effort"))
+                      }
                     >
                       <span>Effort</span>
-                      <span>{titleCase(reasoningEffort)}　›</span>
+                      <span>
+                        {titleCase(reasoningEffort)} <ChevronRight aria-hidden="true" />
+                      </span>
                     </button>
                     <button
                       type="button"
                       className={selectorPanel === "speed" ? "active" : ""}
-                      onClick={() => setSelectorPanel("speed")}
+                      onClick={() =>
+                        setSelectorPanel((panel) => (panel === "speed" ? "root" : "speed"))
+                      }
                     >
                       <span>Speed</span>
-                      <span>{titleCase(speed)}　›</span>
+                      <span>
+                        {titleCase(speed)} <ChevronRight aria-hidden="true" />
+                      </span>
                     </button>
                     {selectorPanel !== "root" && (
-                      <div className="model-selector-submenu">
+                      <div
+                        ref={submenuRef}
+                        className="model-selector-submenu"
+                        data-panel={selectorPanel}
+                      >
                         <p>
                           {selectorPanel === "model"
                             ? "Model"
@@ -609,7 +656,7 @@ export function DeckChat({
                               }}
                             >
                               <span>Local Gemma</span>
-                              <span>{modelChoice === "local" ? "✓" : ""}</span>
+                              <span>{modelChoice === "local" && <Check aria-hidden="true" />}</span>
                             </button>
                             <div className="model-selector-divider" />
                             {CODEX_MODELS.map((model) => (
@@ -629,7 +676,9 @@ export function DeckChat({
                                 }}
                               >
                                 <span>{model.label}</span>
-                                <span>{activeChoice === model.value ? "✓" : ""}</span>
+                                <span>
+                                  {activeChoice === model.value && <Check aria-hidden="true" />}
+                                </span>
                               </button>
                             ))}
                           </>
@@ -651,7 +700,9 @@ export function DeckChat({
                               }}
                             >
                               <span>{titleCase(effort)}</span>
-                              <span>{reasoningEffort === effort ? "✓" : ""}</span>
+                              <span>
+                                {reasoningEffort === effort && <Check aria-hidden="true" />}
+                              </span>
                             </button>
                           ))}
                         {selectorPanel === "speed" &&
@@ -666,7 +717,7 @@ export function DeckChat({
                               }}
                             >
                               <span>{titleCase(option)}</span>
-                              <span>{speed === option ? "✓" : ""}</span>
+                              <span>{speed === option && <Check aria-hidden="true" />}</span>
                             </button>
                           ))}
                       </div>
@@ -675,22 +726,18 @@ export function DeckChat({
                 )}
               </div>
               <button
-                type="button"
-                className="stream-stop"
-                hidden={!chat.isLoading}
-                aria-label="Stop response"
-                title="Stop response"
-                onClick={() => chat.stop()}
+                type={chat.isLoading ? "button" : "submit"}
+                className={chat.isLoading ? "stream-stop" : undefined}
+                disabled={!chat.isLoading && !input.trim()}
+                aria-label={chat.isLoading ? "Stop response" : "Send message"}
+                title={chat.isLoading ? "Stop response" : "Send message"}
+                onClick={chat.isLoading ? () => chat.stop() : undefined}
               >
-                <span className="stop-icon" aria-hidden="true" />
-              </button>
-              <button
-                type="submit"
-                disabled={!input.trim()}
-                aria-label={chat.isLoading ? "Queue message" : "Send message"}
-                title={chat.isLoading ? "Queue message" : "Send message"}
-              >
-                ↑
+                {chat.isLoading ? (
+                  <Square className="stop-icon" aria-hidden="true" />
+                ) : (
+                  <SendHorizontal aria-hidden="true" />
+                )}
               </button>
             </div>
           </div>

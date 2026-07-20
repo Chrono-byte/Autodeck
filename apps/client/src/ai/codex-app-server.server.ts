@@ -108,23 +108,30 @@ function dynamicToolSpec(tool: DynamicTool) {
   };
 }
 
-function textFromMessage(message: UIMessage) {
+function textFromMessage(message: Record<string, unknown>) {
+  if (!Array.isArray(message.parts)) return "";
   return message.parts
     .flatMap((part) => {
-      if (part.type === "text") return [part.content];
-      if (part.type === "thinking") return [];
+      if (isRecord(part) && part.type === "text" && typeof part.content === "string") {
+        return [part.content];
+      }
       return [];
     })
     .join("");
 }
 
-export function codexConversationInput(messages: UIMessage[]) {
+export function codexConversationInput(messages: readonly unknown[]) {
   return messages
-    .map((message) => {
+    .flatMap((message) => {
+      if (
+        !isRecord(message) ||
+        (message.role !== "system" && message.role !== "user" && message.role !== "assistant")
+      ) {
+        return [];
+      }
       const text = textFromMessage(message).trim();
-      return text ? `${message.role.toUpperCase()}:\n${text}` : "";
+      return text ? [`${message.role.toUpperCase()}:\n${text}`] : [];
     })
-    .filter(Boolean)
     .join("\n\n");
 }
 

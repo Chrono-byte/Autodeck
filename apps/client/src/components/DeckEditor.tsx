@@ -1,5 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "convex/react";
+import {
+  Circle,
+  Crown,
+  Diamond,
+  Gem,
+  LoaderCircle,
+  Moon,
+  Mountain,
+  MoreVertical,
+  Plus,
+  Sparkles,
+  Swords,
+  UserRound,
+  WandSparkles,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
 import { api } from "@autodekt/backend/api";
 import type { Doc } from "@autodekt/backend/data-model";
 import { cardImageUrl } from "../lib/card-image";
@@ -56,20 +73,21 @@ function normalizeName(name: string) {
   return name.trim().toLocaleLowerCase();
 }
 
-function groupIcon(label: string) {
-  const icons: Record<string, string> = {
-    Commander: "✦",
-    Creature: "♞",
-    Planeswalker: "◈",
-    Sorcery: "◒",
-    Instant: "ϟ",
-    Artifact: "◆",
-    Enchantment: "✳",
-    Battle: "⚔",
-    Land: "▲",
-    Maybeboard: "◇",
+function GroupIcon({ label }: { label: string }) {
+  const icons: Record<string, LucideIcon> = {
+    Commander: Crown,
+    Creature: UserRound,
+    Planeswalker: Sparkles,
+    Sorcery: Moon,
+    Instant: Zap,
+    Artifact: Gem,
+    Enchantment: WandSparkles,
+    Battle: Swords,
+    Land: Mountain,
+    Maybeboard: Diamond,
   };
-  return icons[label] ?? "•";
+  const Icon = icons[label] ?? Circle;
+  return <Icon aria-hidden="true" />;
 }
 
 export function DeckEditor({
@@ -491,7 +509,11 @@ export function DeckEditor({
             disabled={busy}
             aria-label={`Add card to ${zoneLabel}`}
           >
-            {busy ? "…" : "+"}
+            {busy ? (
+              <LoaderCircle className="spinning" aria-hidden="true" />
+            ) : (
+              <Plus aria-hidden="true" />
+            )}
           </button>
         </div>
         <div className="deck-toolbar">
@@ -648,7 +670,7 @@ export function DeckEditor({
             <section className="card-group" key={label}>
               <header>
                 <h3>
-                  <span aria-hidden="true">{groupIcon(label)}</span> {label}
+                  <GroupIcon label={label} /> {label}
                   <b>({groupCards.reduce((sum, card) => sum + card.quantity, 0)})</b>
                 </h3>
                 <span>{groupCards.length} unique</span>
@@ -721,7 +743,7 @@ export function DeckEditor({
                           });
                         }}
                       >
-                        ⋮
+                        <MoreVertical aria-hidden="true" />
                       </button>
                     </div>
                   );
@@ -832,7 +854,7 @@ export function DeckEditor({
         <div className="summary-types">
           {Object.entries(counts).map(([type, count]) => (
             <span key={type} title={type}>
-              {groupIcon(type)} <b>{count}</b>
+              <GroupIcon label={type} /> <b>{count}</b>
             </span>
           ))}
         </div>

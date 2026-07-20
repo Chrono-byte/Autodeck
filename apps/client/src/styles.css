@@ -13,6 +13,18 @@
 }
 
 @layer base {
+  html {
+    --sidebar-bg: #e8ece7;
+    --sidebar-raised: #f3f5f2;
+    --sidebar-hover: #dce2dc;
+    --sidebar-active: color-mix(in srgb, var(--color-accent) 12%, #e8ece7);
+    --sidebar-border: #cbd3cb;
+    --sidebar-text: #505a52;
+    --sidebar-strong: #1d2820;
+    --sidebar-muted: #768078;
+    --sidebar-icon: #68736a;
+  }
+
   html[data-theme="dark"] {
     --color-ink: #e7ebe7;
     --color-muted: #9aa39c;
@@ -21,6 +33,15 @@
     --color-soft: #222923;
     --color-line: #323a33;
     --color-sidebar: #0d110e;
+    --sidebar-bg: #0d110e;
+    --sidebar-raised: #181d19;
+    --sidebar-hover: rgb(255 255 255 / 0.05);
+    --sidebar-active: rgb(255 255 255 / 0.07);
+    --sidebar-border: rgb(255 255 255 / 0.1);
+    --sidebar-text: #a3aaa5;
+    --sidebar-strong: #ffffff;
+    --sidebar-muted: #737b75;
+    --sidebar-icon: #737b75;
   }
 
   html[data-accent="forest"] {
@@ -216,7 +237,10 @@
   }
 
   .app-sidebar {
-    @apply flex h-screen min-w-0 flex-col overflow-hidden border-r border-white/10 bg-sidebar text-neutral-300 transition-transform duration-150;
+    @apply flex h-screen min-w-0 flex-col overflow-hidden border-r transition-transform duration-150;
+    border-color: var(--sidebar-border);
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
   }
 
   .sidebar-collapsed .app-sidebar {
@@ -233,15 +257,33 @@
   }
 
   .sidebar-brand strong {
-    @apply text-sm font-semibold text-white;
+    @apply text-sm font-semibold;
+    color: var(--sidebar-strong);
   }
 
   .sidebar-brand button {
-    @apply ml-auto grid size-8 place-items-center rounded-md border-0 bg-transparent text-lg text-neutral-500 hover:bg-white/5 hover:text-white;
+    @apply ml-auto grid size-8 place-items-center rounded-md border-0 bg-transparent text-lg;
+    color: var(--sidebar-icon);
+  }
+  .sidebar-brand button:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
+  }
+
+  .sidebar-brand button svg,
+  .sidebar-account-link > svg,
+  .open-sidebar svg {
+    @apply size-4;
   }
 
   .new-deck-button {
-    @apply mx-2 mb-2 flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-left text-xs font-medium text-neutral-200 hover:bg-white/10;
+    @apply mx-2 mb-2 flex items-center gap-2 rounded-md border px-3 py-2 text-left text-xs font-medium;
+    border-color: var(--sidebar-border);
+    background: var(--sidebar-raised);
+    color: var(--sidebar-strong);
+  }
+  .new-deck-button:hover {
+    background: var(--sidebar-hover);
   }
 
   .new-deck-button svg,
@@ -256,7 +298,13 @@
   }
 
   .inline-create input {
-    @apply min-w-0 flex-1 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-white outline-none focus:border-white/30;
+    @apply min-w-0 flex-1 rounded-md border px-2 py-1.5 text-xs outline-none;
+    border-color: var(--sidebar-border);
+    background: var(--sidebar-raised);
+    color: var(--sidebar-strong);
+  }
+  .inline-create input:focus {
+    border-color: var(--color-accent);
   }
 
   .inline-create button {
@@ -272,11 +320,17 @@
   }
 
   .nav-label {
-    @apply m-0 text-[10px] font-semibold uppercase tracking-wider text-neutral-500;
+    @apply m-0 text-[10px] font-semibold uppercase tracking-wider;
+    color: var(--sidebar-muted);
   }
 
   .sidebar-section-heading > button {
-    @apply grid size-7 place-items-center rounded-md border-0 bg-transparent text-neutral-500 hover:bg-white/5 hover:text-neutral-200;
+    @apply grid size-7 place-items-center rounded-md border-0 bg-transparent;
+    color: var(--sidebar-icon);
+  }
+  .sidebar-section-heading > button:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .deck-nav-group {
@@ -284,11 +338,17 @@
   }
 
   .deck-folder-row {
-    @apply flex h-9 min-w-0 items-center rounded-md text-neutral-400 hover:bg-white/5 hover:text-neutral-100;
+    @apply flex h-9 min-w-0 items-center rounded-md;
+    color: var(--sidebar-text);
+  }
+  .deck-folder-row:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .deck-folder-row.active {
-    @apply text-white;
+    background: var(--sidebar-active);
+    color: var(--sidebar-strong);
   }
 
   .deck-folder-toggle {
@@ -296,7 +356,8 @@
   }
 
   .deck-folder-toggle svg:first-child {
-    @apply size-2.5 text-neutral-600 transition-transform;
+    @apply size-2.5 transition-transform;
+    color: var(--sidebar-muted);
   }
 
   .deck-folder-toggle svg:first-child.expanded {
@@ -308,7 +369,12 @@
   }
 
   .deck-folder-add {
-    @apply mr-1 grid size-7 shrink-0 place-items-center rounded-md border-0 bg-transparent text-neutral-500 opacity-0 hover:bg-white/10 hover:text-white;
+    @apply mr-1 grid size-7 shrink-0 place-items-center rounded-md border-0 bg-transparent opacity-0;
+    color: var(--sidebar-icon);
+  }
+  .deck-folder-add:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .deck-folder-row:hover .deck-folder-add,
@@ -316,16 +382,29 @@
     @apply opacity-100;
   }
 
+  @media (hover: none) {
+    .deck-folder-add {
+      @apply opacity-100;
+    }
+  }
+
   .thread-nav {
-    @apply ml-6 grid gap-0.5 border-l border-white/10 pl-2;
+    @apply ml-6 grid gap-0.5 border-l pl-2;
+    border-color: var(--sidebar-border);
   }
 
   .thread-nav-row {
-    @apply relative flex h-8 min-w-0 items-center rounded-md text-neutral-500 hover:bg-white/5 hover:text-neutral-200;
+    @apply relative flex h-8 min-w-0 items-center rounded-md;
+    color: var(--sidebar-muted);
+  }
+  .thread-nav-row:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .thread-nav-row.active {
-    @apply bg-white/5 text-white;
+    background: var(--sidebar-active);
+    color: var(--sidebar-strong);
   }
 
   .thread-nav-main {
@@ -337,7 +416,7 @@
   }
 
   .thread-nav-main svg {
-    @apply size-2.5 text-emerald-300/70;
+    @apply size-2.5 text-accent;
   }
 
   .thread-nav svg.filled {
@@ -345,20 +424,42 @@
   }
 
   .thread-nav-actions {
-    @apply pointer-events-none absolute right-1 flex items-center bg-sidebar pl-1 opacity-0;
+    @apply pointer-events-none absolute right-1 flex items-center pl-1 opacity-0;
+    background: var(--sidebar-bg);
   }
 
   .thread-nav-row:hover .thread-nav-actions,
   .thread-nav-row:focus-within .thread-nav-actions {
     @apply pointer-events-auto opacity-100;
+    background: var(--sidebar-hover);
+  }
+
+  .thread-nav-row.active .thread-nav-actions {
+    background: var(--sidebar-active);
+  }
+
+  @media (hover: none) {
+    .thread-nav-actions {
+      @apply pointer-events-auto opacity-100;
+    }
   }
 
   .thread-nav-actions button {
-    @apply grid size-6 place-items-center rounded border-0 bg-transparent p-0 text-neutral-500 hover:bg-white/10 hover:text-white;
+    @apply grid size-6 place-items-center rounded border-0 bg-transparent p-0;
+    color: var(--sidebar-icon);
+  }
+  .thread-nav-actions button:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .thread-nav .add-thread {
-    @apply flex h-8 items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-[11px] text-neutral-500 hover:bg-white/5 hover:text-neutral-200;
+    @apply flex h-8 items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-[11px];
+    color: var(--sidebar-muted);
+  }
+  .thread-nav .add-thread:hover {
+    background: var(--sidebar-hover);
+    color: var(--sidebar-strong);
   }
 
   .thread-context-menu {
@@ -370,7 +471,7 @@
   }
 
   .thread-context-menu > button {
-    @apply flex w-full items-center rounded border-0 bg-transparent px-2 py-2 text-left text-xs text-ink hover:bg-soft;
+    @apply flex w-full items-center rounded border-0 bg-transparent px-2 py-2 text-left text-xs text-ink hover:bg-soft disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent;
   }
 
   .thread-context-menu > button.danger {
@@ -401,20 +502,57 @@
     @apply my-1 h-px bg-line;
   }
 
+  .rename-dialog-backdrop {
+    @apply fixed inset-0 z-[80] grid place-items-center bg-black/45 p-4;
+  }
+
+  .rename-dialog {
+    @apply grid w-full max-w-sm gap-3 rounded-lg border border-line bg-panel p-4 text-ink shadow-xl;
+  }
+
+  .rename-dialog h2 {
+    @apply m-0 text-base font-semibold;
+  }
+
+  .rename-dialog label {
+    @apply text-xs font-medium text-muted;
+  }
+
+  .rename-dialog input {
+    @apply w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/20;
+  }
+
+  .rename-dialog-actions {
+    @apply mt-1 flex justify-end gap-2;
+  }
+
+  .rename-dialog-actions button {
+    @apply rounded-md border border-line bg-transparent px-3 py-2 text-xs font-medium text-ink hover:bg-soft disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .rename-dialog-actions button[type="submit"] {
+    @apply border-accent bg-accent text-white hover:brightness-95;
+  }
+
   .sidebar-empty {
-    @apply px-3 py-4 text-xs text-neutral-500;
+    @apply px-3 py-4 text-xs;
+    color: var(--sidebar-muted);
   }
 
   .sidebar-user {
-    @apply border-t border-white/10 p-1.5;
+    @apply border-t p-1.5;
+    border-color: var(--sidebar-border);
   }
 
   .sidebar-account-link {
-    @apply flex items-center gap-2.5 rounded-md p-2 text-inherit no-underline hover:bg-white/5;
+    @apply flex items-center gap-2.5 rounded-md p-2 text-inherit no-underline;
+  }
+  .sidebar-account-link:hover {
+    background: var(--sidebar-hover);
   }
 
   .sidebar-account-link > div {
-    @apply grid size-8 shrink-0 place-items-center rounded-md bg-neutral-700 text-xs text-white;
+    @apply grid size-8 shrink-0 place-items-center rounded-md bg-accent text-xs text-white;
   }
 
   .sidebar-account-link span {
@@ -427,15 +565,18 @@
   }
 
   .sidebar-account-link strong {
-    @apply text-xs font-medium text-neutral-200;
+    @apply text-xs font-medium;
+    color: var(--sidebar-strong);
   }
 
   .sidebar-account-link small {
-    @apply text-[10px] text-neutral-500;
+    @apply text-[10px];
+    color: var(--sidebar-muted);
   }
 
-  .sidebar-account-link b {
-    @apply text-xs font-normal text-neutral-500;
+  .sidebar-account-link > svg {
+    @apply shrink-0;
+    color: var(--sidebar-icon);
   }
 
   .open-sidebar {
@@ -768,6 +909,10 @@
   .tool-state {
     @apply ml-auto w-4 text-center text-accent;
   }
+
+  .tool-state svg {
+    @apply size-3.5;
+  }
   .tool-call .disclosure-arrow {
     @apply ml-0;
   }
@@ -794,7 +939,13 @@
     @apply opacity-100;
   }
   .message-actions button {
-    @apply rounded border-0 bg-transparent px-2 py-1 text-[11px] text-muted hover:bg-soft hover:text-ink;
+    @apply inline-flex items-center gap-1 rounded border-0 bg-transparent px-2 py-1 text-[11px] text-muted hover:bg-soft hover:text-ink;
+  }
+
+  .message-actions button svg,
+  .retry-model-selector summary svg,
+  .retry-model-menu button svg {
+    @apply size-3.5 shrink-0;
   }
   .retry-model-selector {
     @apply relative;
@@ -859,11 +1010,8 @@
   .composer-actions > button.stream-stop {
     @apply bg-sidebar;
   }
-  .composer-actions > button[hidden] {
-    @apply hidden;
-  }
   .stop-icon {
-    @apply block size-2 rounded-[2px] bg-current;
+    @apply size-2.5 fill-current;
   }
 
   .message-queue {
@@ -896,26 +1044,54 @@
   }
 
   .jump-to-turn {
-    @apply absolute bottom-[calc(100%+8px)] left-1/2 z-10 -translate-x-1/2 rounded-full border border-line bg-panel px-3 py-1.5 text-[11px] font-medium text-ink;
+    @apply absolute bottom-[calc(100%+8px)] left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-line bg-panel px-3 py-1.5 text-[11px] font-medium text-ink;
   }
   .model-selector {
     @apply relative;
   }
   .model-selector-trigger {
-    @apply flex min-w-40 items-center justify-center gap-2 rounded-md border-0 bg-soft px-3 py-2 text-[11px] font-medium text-ink hover:bg-neutral-200;
+    @apply flex w-40 items-center justify-between gap-2 rounded-md border-0 bg-soft px-3 py-2 text-[11px] font-medium text-ink transition-[width] duration-150 hover:bg-line;
+  }
+  .model-selector-trigger[aria-expanded="true"] {
+    @apply w-56;
   }
   .selector-chevron {
-    @apply text-muted;
+    @apply size-3.5 shrink-0 text-muted transition-transform duration-150;
+  }
+  .model-selector-trigger[aria-expanded="true"] .selector-chevron {
+    @apply rotate-180;
   }
   .model-selector-menu,
   .model-selector-submenu {
     @apply absolute bottom-[calc(100%+8px)] right-0 z-30 w-56 rounded-md border border-neutral-700 bg-sidebar p-1.5 text-white;
   }
   .model-selector-submenu {
-    @apply right-[calc(100%+6px)] w-64;
+    @apply left-[calc(100%+6px)] right-auto w-64;
+    transform: translateX(calc(-1 * var(--submenu-viewport-shift, 0px)));
+  }
+  .model-selector-submenu[data-panel="model"] {
+    @apply bottom-[4.375rem];
+  }
+  .model-selector-submenu[data-panel="effort"] {
+    @apply bottom-[2.375rem];
+  }
+  .model-selector-submenu[data-panel="speed"] {
+    @apply bottom-[0.375rem];
   }
   .model-selector-menu button {
     @apply flex w-full items-center justify-between rounded border-0 bg-transparent px-2 py-2 text-left text-xs text-neutral-200 hover:bg-white/10;
+  }
+  .model-selector-menu button > span:last-child {
+    @apply inline-flex items-center gap-1;
+  }
+  .model-selector-menu button svg {
+    @apply size-3.5 shrink-0;
+  }
+  .model-selector-menu > button > span:last-child > svg {
+    @apply transition-transform duration-150;
+  }
+  .model-selector-menu > button.active > span:last-child > svg {
+    @apply rotate-180;
   }
   .model-selector-menu button.active {
     @apply bg-white/10;
@@ -1064,8 +1240,8 @@
   .card-group h3 {
     @apply m-0 flex items-center gap-1 text-[11px] font-semibold;
   }
-  .card-group h3 > span {
-    @apply text-accent;
+  .card-group h3 > svg {
+    @apply size-3.5 shrink-0 text-accent;
   }
   .card-group h3 b {
     @apply font-normal text-muted;
@@ -1155,6 +1331,9 @@
   .stacks-view .stack-menu-button {
     @apply absolute right-1.5 top-1.5 z-[3] grid size-6 place-items-center rounded-full border border-white/20 bg-black/80 p-0 text-sm leading-none text-white opacity-80 hover:opacity-100 focus-visible:opacity-100;
   }
+  .stack-menu-button svg {
+    @apply size-3.5;
+  }
   .list-view {
     @apply grid-cols-[190px_minmax(0,1fr)];
   }
@@ -1213,7 +1392,10 @@
     @apply ml-auto flex gap-2;
   }
   .summary-types span {
-    @apply whitespace-nowrap;
+    @apply inline-flex items-center gap-1 whitespace-nowrap;
+  }
+  .summary-types svg {
+    @apply size-3 text-accent;
   }
 
   /* Settings */
@@ -1224,7 +1406,10 @@
     @apply flex h-16 items-center justify-between border-b border-line bg-panel px-[max(24px,5vw)];
   }
   .settings-back {
-    @apply text-xs text-muted no-underline hover:text-ink;
+    @apply inline-flex items-center gap-1 text-xs text-muted no-underline hover:text-ink;
+  }
+  .settings-back svg {
+    @apply size-3.5;
   }
   .settings-brand {
     @apply flex items-center gap-2 text-sm font-semibold;
@@ -1318,28 +1503,19 @@
     @apply self-start text-[9px] text-muted;
   }
   .theme-preview {
-    @apply row-span-2 grid h-8 w-9 grid-cols-[11px_1fr] overflow-hidden rounded border border-line bg-white;
+    @apply row-span-2 grid size-8 place-items-center rounded-md border border-line;
   }
-  .theme-preview i {
-    @apply block bg-[#202522];
+  .theme-preview svg {
+    @apply size-4;
   }
-  .theme-preview b {
-    @apply m-1 block rounded-sm bg-[#eef0ec];
+  .theme-preview-light {
+    @apply border-[#d8ddd7] bg-white text-[#263029];
   }
   .theme-preview-dark {
-    @apply border-[#323a33] bg-[#181d19];
-  }
-  .theme-preview-dark i {
-    @apply bg-[#0d110e];
-  }
-  .theme-preview-dark b {
-    @apply bg-[#323a33];
+    @apply border-[#39423b] bg-[#181d19] text-[#dfe6df];
   }
   .theme-preview-system {
-    background: linear-gradient(135deg, #ffffff 0 49%, #181d19 51% 100%);
-  }
-  .theme-preview-system b {
-    background: linear-gradient(135deg, #eef0ec 0 49%, #323a33 51% 100%);
+    @apply border-[#48534a] bg-[#29302a] text-white;
   }
   .accent-choices {
     @apply flex items-center gap-2;
@@ -1471,7 +1647,10 @@
     @apply row-span-2 font-mono text-sm tracking-wider text-ink;
   }
   .settings-device-code a {
-    @apply text-accent underline;
+    @apply inline-flex items-center gap-1 text-accent underline;
+  }
+  .settings-device-code a svg {
+    @apply size-3;
   }
   .connection-copy .settings-connection-error {
     @apply text-red-700;

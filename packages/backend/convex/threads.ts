@@ -1,7 +1,14 @@
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import { requireOwnedDeck, requireOwnedThread, requireOwnerId } from "./authz";
 import {
   INLINE_MESSAGE_LENGTH,
@@ -274,6 +281,45 @@ export const archive = mutation({
     const ownerId = await requireOwnerId(ctx);
     await requireOwnedThread(ctx, ownerId, threadId);
     await ctx.db.patch(threadId, { archived: true, pinned: false, updatedAt: Date.now() });
+    return null;
+  },
+});
+
+const ARCHIVE_BATCH_SIZE = 100;
+
+export const archiveAllForDeck = mutation({
+  args: { deckId: v.id("decks") },
+  returns: v.null(),
+  handler: async (ctx, { deckId }) => {
+    const ownerId = await requireOwnerId(ctx);
+    await requireOwnedDeck(ctx, ownerId, deckId);
+    await ctx.scheduler.runAfter(0, internal.threads.archiveDeckBatch, { deckId, ownerId });
+    return null;
+  },
+});
+
+export const archiveDeckBatch = internalMutation({
+  args: { deckId: v.id("decks"), ownerId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { deckId, ownerId }) => {
+    const deck = await ctx.db.get(deckId);
+    if (!deck || deck.ownerId !== ownerId || deck.deletingAt !== undefined) return null;
+
+    const threads = await ctx.db
+      .query("threads")
+      .withIndex("by_deck_archived_pinned_activity", (q) =>
+        q.eq("deckId", deckId).eq("archived", false),
+      )
+      .take(ARCHIVE_BATCH_SIZE);
+    const now = Date.now();
+    await Promise.all(
+      threads.map((thread) =>
+        ctx.db.patch(thread._id, { archived: true, pinned: false, updatedAt: now }),
+      ),
+    );
+    if (threads.length === ARCHIVE_BATCH_SIZE) {
+      await ctx.scheduler.runAfter(0, internal.threads.archiveDeckBatch, { deckId, ownerId });
+    }
     return null;
   },
 });

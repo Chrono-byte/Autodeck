@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AuthLoading, Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
 import { Link } from "@tanstack/react-router";
+import { ArrowLeft, ExternalLink, MonitorCog, Moon, Sun } from "lucide-react";
 import { api } from "@autodekt/backend/api";
 import { authClient } from "../lib/auth-client";
 import {
@@ -84,7 +85,7 @@ function SettingsPage() {
     <main className="settings-page">
       <header className="settings-header">
         <Link to="/" className="settings-back">
-          ← Back to workspace
+          <ArrowLeft aria-hidden="true" /> Back to workspace
         </Link>
         <div className="settings-brand">
           <div className="brand-mark">A</div>
@@ -179,6 +180,15 @@ const themeChoices: ReadonlyArray<{ value: AppTheme; label: string; detail: stri
   { value: "dark", label: "Dark", detail: "Low-light workspace" },
 ];
 
+function ThemePreview({ theme }: { theme: AppTheme }) {
+  const Icon = theme === "system" ? MonitorCog : theme === "light" ? Sun : Moon;
+  return (
+    <span className={`theme-preview theme-preview-${theme}`} aria-hidden="true">
+      <Icon />
+    </span>
+  );
+}
+
 const accentChoices: ReadonlyArray<{ value: AppAccent; label: string }> = [
   { value: "forest", label: "Forest" },
   { value: "blue", label: "Blue" },
@@ -214,10 +224,7 @@ function AppearanceSettings() {
                 checked={preferences.theme === choice.value}
                 onChange={() => update({ theme: choice.value })}
               />
-              <span className={`theme-preview theme-preview-${choice.value}`} aria-hidden="true">
-                <i />
-                <b />
-              </span>
+              <ThemePreview theme={choice.value} />
               <strong>{choice.label}</strong>
               <small>{choice.detail}</small>
             </label>
@@ -502,7 +509,7 @@ function CodexConnection() {
             <strong>{deviceCode}</strong>
             {verificationUri && (
               <a href={verificationUri} target="_blank" rel="noreferrer">
-                Open OpenAI ↗
+                Open OpenAI <ExternalLink aria-hidden="true" />
               </a>
             )}
           </div>
