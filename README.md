@@ -1,100 +1,217 @@
 # Autodekt
 
-An agentic Magic: The Gathering Commander deck research and tuning workspace built with TanStack Start and TanStack AI.
+Autodekt is an agentic Magic: The Gathering Commander deckbuilding workspace. It combines a persistent, Moxfield-inspired deck editor with an AI collaborator that can research current strategy, inspect the live deck, verify card text and rules, analyze deck structure, and make edits alongside the player.
 
-## First run
+Built with Codex and GPT-5.6 for the [OpenAI Build Week](https://openai.devpost.com/) **Apps for Your Life** track.
+
+## Why Autodekt
+
+Commander deckbuilding is an open-ended research problem. A useful assistant needs more than a chat box: it must understand the player's actual list, distinguish current card data from general model knowledge, check official rules, find recent community strategy, and preserve every decision across a long tuning session.
+
+Autodekt turns those requirements into one shared workspace. The player and agent work on the same persistent deck, while deterministic tools and current sources keep the model grounded.
+
+## What it does
+
+- Provides a ChatGPT-style, deck-scoped conversation with Markdown, reasoning summaries, live tool-call UI, queued steering, and model-aware retries.
+- Persists users, decks, conversations, messages, normalized card metadata, preferences, and deck edit history in Convex.
+- Lets the player and agent edit the same deck across commander, main-deck, and maybeboard zones.
+- Imports common text and Arena-style decklists, then groups and sorts cards by board, custom tag, type, color identity, mana value, or name.
+- Reads, searches, analyzes, validates, and edits the active deck without requiring the list to be pasted back into chat.
+- Checks card count, command zone, singleton rules, color identity, and current Commander legality.
+- Estimates lands, ramp, draw, interaction, wipes, protection, tutors, mana curve, and colored-pip demand versus reusable mana sources.
+- Uses Scryfall for current Oracle text, legality, card discovery, art tags, and community-curated Oracle Tagger concepts.
+- Searches Wizards' Comprehensive Rules by rule number, glossary term, or natural-language question.
+- Uses Brave Search for time-sensitive deck tech, strategy, metagame, budget, and pricing research with source links.
+- Exports MTGO-compatible deck text to a file or the clipboard.
+- Runs in the browser or in a native Electron desktop shell with long-lived local card-image caching.
+
+Role and mana-base analysis is intentionally heuristic. It gives the agent structured evidence to reason from; it does not replace reading each card in the context of the deck's plan.
+
+## Quick start
+
+### Prerequisites
+
+- Node.js with Corepack and pnpm 11.5.3
+- A local Convex deployment, created by the setup command below
+- One inference option:
+  - a ChatGPT Plus or Pro account connected from Autodekt for GPT-5.6/Codex models, or
+  - [LM Studio](https://lmstudio.ai/) for the local fallback
+- Optional: a Brave Search API key for live web research
+
+Install dependencies and initialize the local backend:
 
 ```bash
 pnpm install
 pnpm --filter @autodekt/backend dev:once
 ```
 
-The Convex command creates `packages/backend/.env.local`, starts a local deployment, and prompts for any initial setup it needs. The client automatically maps those generated Convex URLs into its Vite environment. In two terminals, keep the backend and app running:
+The Convex command creates `packages/backend/.env.local`, starts a local deployment, and prompts for any initial setup it needs. The client maps the generated Convex URLs into its Vite environment automatically.
+
+If Convex did not set the Better Auth origin, set it once:
+
+```bash
+pnpm --dir packages/backend exec convex env set SITE_URL http://localhost:3000
+```
+
+Start the backend and browser client in separate terminals:
 
 ```bash
 pnpm dev:backend
 pnpm dev:client
 ```
 
-Alternatively, `pnpm dev` starts both workspace tasks through Turborepo.
+Open [http://localhost:3000](http://localhost:3000), create a local account with any email and password, and create a deck. Accounts and workspace data stay in the local Convex deployment.
 
-To use the client in the Electron desktop shell, keep the Convex backend running
-and launch the desktop app instead of `pnpm dev`:
+You can also start both tasks through Turborepo:
+
+```bash
+pnpm dev
+```
+
+## Connect GPT-5.6 through Codex
+
+In Autodekt, open **Settings → OpenAI Codex → Connect** and complete the device-code flow with a ChatGPT Plus or Pro account. Then choose a GPT-5.6 model under **Settings → Generation** or from the composer model picker.
+
+Autodekt uses Pi's OpenAI Codex provider for device authorization, model discovery, and serialized token refresh. Subscription login and inference are accepted only from a loopback app origin (`localhost` or `127.x.x.x`). Per-user OAuth credentials stay in the gitignored `.codex-runtime/credentials` directory; they are never stored in Convex. Disconnecting deletes the local credential.
+
+If a Codex model is selected without an active connection, the request fails clearly rather than silently switching providers.
+
+## Optional services
+
+Copy `.env.example` to `.env.local` and configure the services you want:
+
+```dotenv
+LM_STUDIO_URL=http://127.0.0.1:1234
+LM_STUDIO_MODEL=google/gemma-4-12b-qat
+BRAVE_API_KEY=your-key-here
+LOG_LEVEL=info
+```
+
+For local inference, start LM Studio's server with the configured model loaded. No local API credential is required. `LM_STUDIO_TEXT_MODEL` can override the model used for automatic thread titles. Local Gemma remains available in the model picker without an OpenAI connection.
+
+`BRAVE_API_KEY` is optional, but live deck-tech and metagame research is unavailable without it. The key is read only by server code.
+
+## Judge/demo flow
+
+No seed data or test account is required. After signing up locally:
+
+1. Create a deck and import a Commander list in common text or Arena format.
+2. Connect OpenAI Codex and select a GPT-5.6 model.
+3. Ask: `Analyze my active deck. Check its legality, role balance, mana curve, and colored sources.`
+4. Ask: `Research current upgrade guides for this commander, cite your sources, and suggest three swaps within the deck's plan.`
+5. Ask a card interaction question to see Autodekt retrieve current Oracle text and the relevant Comprehensive Rules before answering.
+6. Ask the agent to make one of its proposed swaps, then inspect the shared deck and edit history.
+7. Export the result as MTGO text or copy it to the clipboard.
+
+For a fast partial-list smoke test, import:
+
+```text
+Commander
+1 Muldrotha, the Gravetide
+
+Deck
+1 Sol Ring
+1 Command Tower
+1 Sakura-Tribe Elder
+1 Eternal Witness
+1 Beast Within
+```
+
+The validator will correctly report that this is not yet a complete Commander deck, while the search, analysis, card-data, rules, and editing flows remain testable.
+
+## Desktop app
+
+Keep the backend running and launch the Electron shell:
 
 ```bash
 pnpm dev:backend
 pnpm dev:desktop
 ```
 
-The Electron package lives at `apps/desktop`. In development it reuses the
-TanStack client at `http://localhost:3000` when one is already running;
-otherwise it starts `apps/client` and stops that child process when Electron exits.
-Set `AUTODEKT_CLIENT_URL` to wrap a different local development origin without
-starting the client development server.
+In development, Electron reuses a client already running at `http://localhost:3000`; otherwise it starts and owns the client process. Set `AUTODEKT_CLIENT_URL` to wrap another local development origin.
 
-`pnpm dev:desktop` uses the Vite development server for HMR. The production
-desktop path does not run Vite: `pnpm start:desktop` builds once, then Electron
-serves the compiled TanStack client and server from an embedded loopback HTTP
-server. Use `pnpm package:desktop` to create the Windows installer.
+The production desktop path serves the compiled TanStack application from an embedded loopback HTTP server and does not run Vite:
 
-## Workspace layout
+```bash
+pnpm start:desktop
+```
+
+Create the Windows installer with:
+
+```bash
+pnpm package:desktop
+```
+
+## Architecture
 
 ```text
 apps/
-  client/      TanStack Start browser UI and HTTP routes
-  desktop/     Electron main process, preload bridges, and native window shell
+  client/      TanStack Start UI, TanStack AI agent, and HTTP routes
+  desktop/     Electron main process, preload bridges, and native shell
 packages/
   backend/     Convex schema, functions, generated bindings, and local state
-  config/      Shared TypeScript presets
+  config/      Shared TypeScript configuration
 ```
 
-The root package only orchestrates workspace tasks. Client code imports Convex
-bindings through `@autodekt/backend` instead of reaching across package folders.
-TypeScript presets are exported by `@autodekt/config`; repository-wide Turbo,
-Oxlint, and Oxfmt configuration remains at the workspace root.
+The root package is orchestration-only. The client imports generated Convex bindings through `@autodekt/backend`; package code does not reach across workspace folders.
 
-The Better Auth server expects `SITE_URL=http://localhost:3000` in the Convex deployment. Set it once if Convex did not already do so:
+The main agent boundary is deliberate:
+
+```text
+Player + persistent deck
+          ↓
+  TanStack AI agent
+          ↓
+  ┌───────────────┬─────────────────┬──────────────────┐
+  │ deterministic │ current factual │ current research │
+  │ deck tools    │ sources         │ sources          │
+  │ analyze/edit  │ Scryfall/rules  │ Brave Search     │
+  └───────────────┴─────────────────┴──────────────────┘
+```
+
+Game invariants—ownership, deck zones, Commander legality, query validation, and persisted edits—live in code. The model decides when to use tools and how to synthesize their evidence, but it cannot bypass those constraints. Named-card advice requires a current Scryfall lookup, and rules questions require a Comprehensive Rules lookup.
+
+Large streamed conversations are stored incrementally in paginated message records, with oversized tool and reasoning payloads split into chunks. Provider-specific stream normalization stays at the Codex adapter boundary so the rest of the chat UI consumes one stable event contract.
+
+## How Codex and GPT-5.6 shaped the project
+
+Autodekt was developed as a sequence of real Codex sessions, beginning with the persistent Commander workspace and continuing through focused feature, reliability, and product-polish passes. Codex accelerated the work in four ways:
+
+- **Research to implementation:** Codex checked live Brave, Scryfall, Electron, Convex, and OpenAI/Codex contracts, then implemented the integrations and regression tests in the same session.
+- **Cross-boundary reasoning:** GPT-5.6 traced failures across streamed provider events, TanStack AI state, React rendering, Convex persistence, and Electron preload IPC instead of treating symptoms in isolation.
+- **Decision pressure-testing:** Codex helped separate model judgment from deterministic safeguards—for example, keeping mechanics in tools, validation in code, and source requirements in the system prompt.
+- **Continuous verification:** Each focused change was validated through the relevant TypeScript, test, lint, build, Convex code-generation, API smoke-test, or Electron runtime path before the next feature was layered on.
+
+Representative Codex-built slices include the shared deck/thread data model, grounded Scryfall and rules tools, Brave research with citations, quantity-aware deck analysis, Oracle Tagger discovery, local Scryfall-style deck search, MTGO export, resilient card-image caching, rich streamed chat UI, queued steering, Codex OAuth, and the browser/desktop monorepo split.
+
+Key product decisions made during those sessions:
+
+- Build a durable shared workspace, not a stateless decklist prompt.
+- Prefer live or bundled authoritative data over memorized card text and rules.
+- Keep browsing and model inference optional so the core workspace can run locally.
+- Keep OAuth credentials on the local machine and out of application data.
+- Treat community Oracle tags and deck-role counts as discovery heuristics, not rules truth.
+- Normalize unreliable provider details once at the adapter boundary.
+
+## Verification
+
+Run the repository checks from the workspace root:
 
 ```bash
-pnpm --dir packages/backend exec convex env set SITE_URL http://localhost:3000
+pnpm check
+pnpm check-types
+pnpm test
+pnpm build
 ```
 
-Start LM Studio's local server with `google/gemma-4-12b-qat` loaded. The defaults point to `http://127.0.0.1:1234`; no API credential is needed. Override them with `LM_STUDIO_URL` and `LM_STUDIO_MODEL` in `.env.local` if necessary. Automatic thread titles use the model selected under **Settings → Generation**. A local selection can specify an LM Studio model identifier in the UI, or fall back to `LM_STUDIO_TEXT_MODEL`, then `LM_STUDIO_MODEL`. Sign up with any local email and password; accounts are stored in the local Convex deployment.
+The test suite covers agent adapters and tool schemas, Commander validation, quantity-aware analysis, local Scryfall query parsing, Oracle and art tag caches, Brave responses, rules lookup, MTGO export, image caching, authentication boundaries, message chunking, and thread behavior.
 
-You can instead connect a ChatGPT Plus or Pro account from the **OpenAI Codex** card in settings. Autodekt uses Pi's OpenAI Codex provider for the device-code flow, model catalog, and serialized token refresh. Subscription login and inference are restricted to a loopback (`localhost` or `127.x.x.x`) app origin, matching Pi's local-agent model. Per-user OAuth credentials stay in the ignored local `.codex-runtime/credentials` directory and are never persisted in Convex. Disconnecting removes the local credential. If a Codex model is selected without a connection, the request fails clearly instead of silently routing subscription work through another provider.
+## Data and observability
 
-The composer model popout includes **Local Gemma** alongside the available Codex models. Local Gemma remains selectable without an OpenAI connection; Codex models are enabled after OAuth completes.
+The repository includes Wizards of the Coast's English Comprehensive Rules PDF and matching text edition, effective June 19, 2026, under `apps/client/src/data/mtg-rules/`. The PDF is the retained source document; the text edition powers deterministic lookup. The live source of truth remains [Wizards' rules page](https://magic.wizards.com/en/rules).
 
-Add your Brave Search API key to `.env.local` using the exact requested variable name, then restart the app:
+Chat and OAuth lifecycle events are emitted as structured JSON with request IDs. Prompts, authorization headers, device codes, and OAuth tokens are not intentionally logged, and known credential fields are redacted as a final safeguard. Set `LOG_LEVEL` to `debug`, `info`, `warn`, or `error`; the default is `info`. To change Convex-side OAuth logging too, run:
 
-```dotenv
-BRAVE_API_KEY=your-key-here
+```bash
+pnpm --dir packages/backend exec convex env set LOG_LEVEL debug
 ```
-
-## Logging
-
-Chat and OAuth lifecycle events are emitted as structured JSON with a request ID for correlation. Prompts, authorization headers, device codes, and OAuth tokens are never intentionally logged, and known credential fields are redacted as a final safeguard. Set `LOG_LEVEL=debug`, `info`, `warn`, or `error` in the root `.env.local`; the default is `info`. To apply a different level to Convex OAuth logs too, set the same variable in the Convex deployment with `pnpm --dir packages/backend exec convex env set LOG_LEVEL debug`.
-
-## What the MVP does
-
-- Provides a ChatGPT-style workspace with authenticated deck-scoped conversation threads.
-- Persists users, decks, threads, message history, normalized cards, and deck edit history in Convex.
-- Lets the user and assistant edit the same Moxfield-inspired list with commander, main-deck, and maybeboard zones.
-- Groups by custom tag, card type, color identity, mana value, or board; sorts by name, mana value, or type.
-- Imports common text and Arena-style decklists through Scryfall's batched collection endpoint.
-- Streams agent conversations through TanStack AI.
-- Synthesizes deck-tech and strategy guidance with a local LM Studio model.
-- Searches current deck-tech guides and strategy sources through Brave Search and returns source links.
-- Searches current Oracle card data through Scryfall.
-- Requires a current Scryfall Oracle-text lookup before the model gives feedback about a named card.
-- Searches a local index of Wizards' official Comprehensive Rules by rule number, glossary term, or natural-language phrase.
-- Requires a Comprehensive Rules lookup before the model answers rules and card-interaction questions.
-- Estimates lands, ramp, draw, targeted interaction, wipes, protection, tutors, and average mana value.
-
-Functional roles are deliberately overlapping and heuristic. They are evidence for the agent, not a substitute for reading cards in the context of a deck's plan.
-
-## Local rules source
-
-The repository includes Wizards of the Coast's English Comprehensive Rules PDF and matching TXT edition, effective June 19, 2026, under `apps/client/src/data/mtg-rules/`. The PDF is the retained source document; the matching text edition powers deterministic lookup. The live source of truth remains [Wizards' rules page](https://magic.wizards.com/en/rules), which should be checked when refreshing these files.
-
-Live guide discovery uses Brave Search, while current card text and Commander legality continue to come from Scryfall.
