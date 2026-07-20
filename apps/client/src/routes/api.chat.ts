@@ -28,7 +28,7 @@ import { isManaColor } from "../lib/deck-analysis";
 import { editActiveDeckDefinition, getActiveDeckDefinition } from "../ai/deck-tools";
 import { logger } from "../lib/logger.server";
 import { isLoopbackRequest } from "../lib/local-request";
-import { resolveOpenAICodexCredential } from "../lib/openai-codex.server";
+import { hasOpenAICodexConnection } from "../lib/openai-codex.server";
 import { scryfallArtTagCatalog } from "../lib/scryfall-art-tags.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
 import { getScryfallCard } from "../lib/scryfall.server";
@@ -153,20 +153,19 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
-        let codexCredential: { accessToken: string; accountId: string } | null = null;
         if (wantsCodex) {
           try {
-            codexCredential = await resolveOpenAICodexCredential(ownerId);
+            const connected = await hasOpenAICodexConnection(ownerId);
+            if (!connected) {
+              return jsonError(
+                "Connect ChatGPT in account settings before using this model.",
+                409,
+                requestId,
+              );
+            }
           } catch (error) {
             logger.error("chat.auth.resolve_failed", { requestId, error });
             return jsonError("Unable to prepare the selected model.", 502, requestId);
-          }
-          if (!codexCredential) {
-            return jsonError(
-              "Connect ChatGPT in account settings before using this model.",
-              409,
-              requestId,
-            );
           }
         }
 
@@ -357,21 +356,46 @@ export const Route = createFileRoute("/api/chat")({
           },
         };
 
-        const adapter =
-          useCodex && codexCredential
-            ? (await import("../ai/codex-adapter.server")).createCodexResponsesAdapter(codexModel, {
-                accessToken: codexCredential.accessToken,
-                accountId: codexCredential.accountId,
-              })
-            : openaiCompatibleText(process.env.LM_STUDIO_MODEL ?? "google/gemma-4-12b-qat", {
-                name: "lm-studio",
-                baseURL: `${baseURL}/v1`,
-                // The adapter requires a non-empty value; LM Studio does not authenticate it.
-                apiKey: "not-needed",
-                api: "chat-completions",
-              });
+        const chatTools = [
+          getCardTool,
+          getCardOracleTagsTool,
+          searchOracleTagsTool,
+          searchCardsTool,
+          analyzeDeckTool,
+          searchActiveDeckTool,
+          validateActiveDeckTool,
+          comprehensiveRulesTool,
+          braveSearchTool,
+          getActiveDeckTool,
+          editActiveDeckTool,
+        ];
 
         try {
+          if (useCodex) {
+            const response = (await import("../ai/codex-app-server.server")).codexChatResponse({
+              ownerId,
+              model: codexModel,
+              reasoningEffort,
+              serviceTier,
+              messages: body.messages,
+              tools: chatTools,
+              ...(typeof body.threadId === "string" && { threadId: body.threadId }),
+              ...(typeof body.runId === "string" && { runId: body.runId }),
+              abortSignal: request.signal,
+            });
+            return observeStream(response, streamDetails, startedAt, requestId);
+          }
+
+          const adapter = openaiCompatibleText(
+            process.env.LM_STUDIO_MODEL ?? "google/gemma-4-12b-qat",
+            {
+              name: "lm-studio",
+              baseURL: `${baseURL}/v1`,
+              // The adapter requires a non-empty value; LM Studio does not authenticate it.
+              apiKey: "not-needed",
+              api: "chat-completions",
+            },
+          );
           const stream = chat({
             adapter,
             messages: body.messages,
@@ -379,29 +403,7 @@ export const Route = createFileRoute("/api/chat")({
             ...(typeof body.runId === "string" && { runId: body.runId }),
             ...(typeof body.parentRunId === "string" && { parentRunId: body.parentRunId }),
             systemPrompts: [SYSTEM_PROMPT],
-            ...(useCodex && {
-              modelOptions: {
-                store: false,
-                include: ["reasoning.encrypted_content"],
-                reasoning: { effort: reasoningEffort, summary: "auto" },
-                service_tier: serviceTier,
-                text: { verbosity: "low" },
-                parallel_tool_calls: true,
-              },
-            }),
-            tools: [
-              getCardTool,
-              getCardOracleTagsTool,
-              searchOracleTagsTool,
-              searchCardsTool,
-              analyzeDeckTool,
-              searchActiveDeckTool,
-              validateActiveDeckTool,
-              comprehensiveRulesTool,
-              braveSearchTool,
-              getActiveDeckTool,
-              editActiveDeckTool,
-            ],
+            tools: chatTools,
             agentLoopStrategy: maxIterations(12),
             middleware: [observabilityMiddleware],
           });

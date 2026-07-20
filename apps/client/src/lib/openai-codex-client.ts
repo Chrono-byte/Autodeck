@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AuthEvent } from "@earendil-works/pi-ai";
 import { authClient } from "./auth-client";
+
+export type OpenAICodexAuthEvent = {
+  type: "device_code";
+  userCode: string;
+  verificationUri: string;
+};
 
 export interface OpenAICodexStatus {
   connected: boolean;
@@ -8,7 +13,7 @@ export interface OpenAICodexStatus {
 }
 
 type LoginStreamEvent =
-  | { type: "auth"; event: AuthEvent }
+  | { type: "auth"; event: OpenAICodexAuthEvent }
   | { type: "connected" }
   | { type: "error"; message: string };
 
@@ -24,7 +29,7 @@ export async function readOpenAICodexStatus(): Promise<OpenAICodexStatus> {
   return (await response.json()) as OpenAICodexStatus;
 }
 
-export async function connectOpenAICodex(onAuthEvent: (event: AuthEvent) => void) {
+export async function connectOpenAICodex(onAuthEvent: (event: OpenAICodexAuthEvent) => void) {
   const response = await fetch("/api/openai-codex", {
     method: "POST",
     headers: { ...(await authorizationHeaders()), "Content-Type": "application/json" },

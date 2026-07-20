@@ -5,7 +5,7 @@ import { api } from "@autodekt/backend/api";
 import type { Id } from "@autodekt/backend/data-model";
 import { authenticateConvexRequest } from "../lib/convex-request-auth.server";
 import { isLoopbackRequest } from "../lib/local-request";
-import { resolveOpenAICodexCredential } from "../lib/openai-codex.server";
+import { hasOpenAICodexConnection } from "../lib/openai-codex.server";
 import { cleanGeneratedThreadTitle } from "../lib/thread-title";
 
 const CODEX_TITLE_MODELS = new Set(["gpt-5.4-mini", "gpt-5.3-codex-spark"]);
@@ -66,43 +66,39 @@ export const Route = createFileRoute("/api/thread-title")({
           process.env.LM_STUDIO_MODEL ||
           "google/gemma-4-12b-qat";
 
-        const credential = wantsLocal ? null : await resolveOpenAICodexCredential(ownerId);
-        const useCodex = Boolean(credential) && CODEX_TITLE_MODELS.has(selected);
+        const connected = wantsLocal ? false : await hasOpenAICodexConnection(ownerId);
+        const useCodex = connected && CODEX_TITLE_MODELS.has(selected);
         const baseURL = (process.env.LM_STUDIO_URL ?? "http://127.0.0.1:1234")
           .replace(/\/$/, "")
           .replace(/\/v1$/, "");
-        const adapter =
-          useCodex && credential
-            ? (await import("../ai/codex-adapter.server")).createCodexResponsesAdapter(selected, {
-                accessToken: credential.accessToken,
-                accountId: credential.accountId,
-              })
-            : openaiCompatibleText(localModel, {
-                name: "lm-studio",
-                baseURL: `${baseURL}/v1`,
-                apiKey: "not-needed",
-                api: "chat-completions",
-              });
 
         const abortController = new AbortController();
         const timeout = setTimeout(() => abortController.abort(), 15_000);
         try {
-          const generated = await chat({
-            adapter,
-            stream: false,
-            abortController,
-            systemPrompts: [
-              "Write a concise title for a conversation about a Magic: The Gathering Commander deck. Use 3 to 7 words. Return only the title with no quotes, punctuation, label, or explanation.",
-            ],
-            messages: [{ role: "user", content: sourceMessage.slice(0, 2_000) }],
-            ...(useCodex && {
-              modelOptions: {
-                store: false,
-                reasoning: { effort: "low", summary: "auto" },
-                text: { verbosity: "low" },
-              },
-            }),
-          });
+          const titleInstructions =
+            "Write a concise title for a conversation about a Magic: The Gathering Commander deck. Use 3 to 7 words. Return only the title with no quotes, punctuation, label, or explanation.";
+          const generated = useCodex
+            ? await (
+                await import("../ai/codex-app-server.server")
+              ).generateCodexText({
+                ownerId,
+                model: selected,
+                prompt: sourceMessage.slice(0, 2_000),
+                instructions: titleInstructions,
+                abortSignal: abortController.signal,
+              })
+            : await chat({
+                adapter: openaiCompatibleText(localModel, {
+                  name: "lm-studio",
+                  baseURL: `${baseURL}/v1`,
+                  apiKey: "not-needed",
+                  api: "chat-completions",
+                }),
+                stream: false,
+                abortController,
+                systemPrompts: [titleInstructions],
+                messages: [{ role: "user", content: sourceMessage.slice(0, 2_000) }],
+              });
           const title = cleanGeneratedThreadTitle(generated);
           if (force) {
             await convex.mutation(api.threads.rename, { threadId, title });

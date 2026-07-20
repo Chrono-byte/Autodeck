@@ -140,7 +140,7 @@ async function startClient(): Promise<void> {
     return;
   }
 
-  process.env.AUTODEKT_RUNTIME_DIRECTORY = resolve(app.getPath("userData"), "credentials");
+  process.env.AUTODEKT_RUNTIME_DIRECTORY = resolve(app.getPath("userData"), "codex-app-server");
   productionServer = await startProductionServer(applicationBuildDirectory);
   clientUrl = new URL(productionServer.origin);
 }

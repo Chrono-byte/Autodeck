@@ -5,10 +5,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
 const workspaceDirectory = resolve(import.meta.dirname, "../..");
-process.env.AUTODEKT_RUNTIME_DIRECTORY ??= resolve(
-  workspaceDirectory,
-  ".codex-runtime/credentials",
-);
+process.env.AUTODEKT_RUNTIME_DIRECTORY ??= resolve(workspaceDirectory, ".codex-runtime/app-server");
 
 export default defineConfig(({ command, mode }) => {
   const clientEnvironment = loadEnv(mode, workspaceDirectory, "");

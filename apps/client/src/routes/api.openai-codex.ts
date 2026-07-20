@@ -1,15 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { AuthEvent, AuthPrompt } from "@earendil-works/pi-ai";
 import { authenticateConvexRequest } from "../lib/convex-request-auth.server";
 import {
   getOpenAICodexStatus,
   loginOpenAICodex,
   logoutOpenAICodex,
+  type OpenAICodexAuthEvent,
 } from "../lib/openai-codex.server";
 import { isLoopbackRequest } from "../lib/local-request";
 
 type LoginStreamEvent =
-  | { type: "auth"; event: AuthEvent }
+  | { type: "auth"; event: OpenAICodexAuthEvent }
   | { type: "connected" }
   | { type: "error"; message: string };
 
@@ -57,13 +57,6 @@ export const Route = createFileRoute("/api/openai-codex")({
           start(controller) {
             void loginOpenAICodex(authenticated.ownerId, {
               signal: request.signal,
-              prompt: async (prompt: AuthPrompt) => {
-                if (prompt.type === "select") {
-                  const deviceOption = prompt.options.find((option) => option.id === "device_code");
-                  if (deviceOption) return deviceOption.id;
-                }
-                throw new Error(`Unsupported Codex login prompt: ${prompt.type}`);
-              },
               notify(event) {
                 controller.enqueue(encodeEvent({ type: "auth", event }));
               },

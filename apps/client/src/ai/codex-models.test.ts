@@ -1,20 +1,22 @@
-import { openaiCodexProvider } from "@earendil-works/pi-ai/providers/openai-codex";
 import { describe, expect, it } from "vitest";
-import { CODEX_MODELS, normalizeReasoningEffort, supportsMaxReasoning } from "./codex-models";
+import {
+  CODEX_MODELS,
+  DEFAULT_CODEX_MODEL,
+  isCodexModel,
+  normalizeReasoningEffort,
+  supportsMaxReasoning,
+} from "./codex-models";
 
 describe("Codex model catalog", () => {
-  it("matches Pi's OpenAI Codex provider", () => {
-    const piModels = openaiCodexProvider().getModels();
-    expect(CODEX_MODELS.map((model) => model.value).sort()).toEqual(
-      piModels.map((model) => model.id).sort(),
-    );
+  it("contains unique model identifiers and its default", () => {
+    const ids = CODEX_MODELS.map((model) => model.value);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(isCodexModel(DEFAULT_CODEX_MODEL)).toBe(true);
   });
 
-  it("derives max reasoning support from Pi's catalog", () => {
-    const piModels = openaiCodexProvider().getModels();
+  it("reports max reasoning support from the UI catalog", () => {
     for (const model of CODEX_MODELS) {
-      const piModel = piModels.find((candidate) => candidate.id === model.value);
-      expect(supportsMaxReasoning(model.value)).toBe(piModel?.thinkingLevelMap?.max === "max");
+      expect(supportsMaxReasoning(model.value)).toBe(model.maxReasoning);
     }
   });
 

@@ -34,7 +34,7 @@ Role and mana-base analysis is intentionally heuristic. It gives the agent struc
 - Node.js with Corepack and pnpm 11.5.3
 - A local Convex deployment, created by the setup command below
 - One inference option:
-  - a ChatGPT Plus or Pro account connected from Autodekt for GPT-5.6/Codex models, or
+  - a ChatGPT Plus or Pro account connected from Autodekt for GPT-5.6/Codex models, with the Codex CLI installed and available as `codex`, or
   - [LM Studio](https://lmstudio.ai/) for the local fallback
 - Optional: a Brave Search API key for live web research
 
@@ -72,7 +72,9 @@ pnpm dev
 
 In Autodekt, open **Settings → OpenAI Codex → Connect** and complete the device-code flow with a ChatGPT Plus or Pro account. Then choose a GPT-5.6 model under **Settings → Generation** or from the composer model picker.
 
-Autodekt uses Pi's OpenAI Codex provider for device authorization, model discovery, and serialized token refresh. Subscription login and inference are accepted only from a loopback app origin (`localhost` or `127.x.x.x`). Per-user OAuth credentials stay in the gitignored `.codex-runtime/credentials` directory; they are never stored in Convex. Disconnecting deletes the local credential.
+Autodekt starts `codex app-server` and communicates with it over its JSON-RPC stdio protocol for device authorization, model discovery, token refresh, inference, streamed reasoning, and deck-tool calls. Install the Codex CLI and ensure `codex` is on the app process's `PATH`; alternatively, set `CODEX_EXECUTABLE` to its absolute path.
+
+Subscription login and inference are accepted only from a loopback app origin (`localhost` or `127.x.x.x`). Each Autodekt account gets an isolated Codex home in the gitignored `.codex-runtime/app-server` directory; credentials are never stored in Convex. Disconnecting signs that isolated Codex session out.
 
 If a Codex model is selected without an active connection, the request fails clearly rather than silently switching providers.
 
@@ -85,6 +87,7 @@ LM_STUDIO_URL=http://127.0.0.1:1234
 LM_STUDIO_MODEL=google/gemma-4-12b-qat
 BRAVE_API_KEY=your-key-here
 LOG_LEVEL=info
+CODEX_EXECUTABLE=codex
 ```
 
 For local inference, start LM Studio's server with the configured model loaded. No local API credential is required. `LM_STUDIO_TEXT_MODEL` can override the model used for automatic thread titles. Local Gemma remains available in the model picker without an OpenAI connection.
@@ -171,7 +174,7 @@ Player + persistent deck
 
 Game invariants—ownership, deck zones, Commander legality, query validation, and persisted edits—live in code. The model decides when to use tools and how to synthesize their evidence, but it cannot bypass those constraints. Named-card advice requires a current Scryfall lookup, and rules questions require a Comprehensive Rules lookup.
 
-Large streamed conversations are stored incrementally in paginated message records, with oversized tool and reasoning payloads split into chunks. Provider-specific stream normalization stays at the Codex adapter boundary so the rest of the chat UI consumes one stable event contract.
+Large streamed conversations are stored incrementally in paginated message records, with oversized tool and reasoning payloads split into chunks. Codex app-server notifications and dynamic-tool requests are normalized at one bridge boundary so the rest of the chat UI consumes the same stable event contract as local inference.
 
 ## How Codex and GPT-5.6 shaped the project
 
@@ -182,7 +185,7 @@ Autodekt was developed as a sequence of real Codex sessions, beginning with the 
 - **Decision pressure-testing:** Codex helped separate model judgment from deterministic safeguards—for example, keeping mechanics in tools, validation in code, and source requirements in the system prompt.
 - **Continuous verification:** Each focused change was validated through the relevant TypeScript, test, lint, build, Convex code-generation, API smoke-test, or Electron runtime path before the next feature was layered on.
 
-Representative Codex-built slices include the shared deck/thread data model, grounded Scryfall and rules tools, Brave research with citations, quantity-aware deck analysis, Oracle Tagger discovery, local Scryfall-style deck search, MTGO export, resilient card-image caching, rich streamed chat UI, queued steering, Codex OAuth, and the browser/desktop monorepo split.
+Representative Codex-built slices include the shared deck/thread data model, grounded Scryfall and rules tools, Brave research with citations, quantity-aware deck analysis, Oracle Tagger discovery, local Scryfall-style deck search, MTGO export, resilient card-image caching, rich streamed chat UI, queued steering, Codex app-server authentication and inference, and the browser/desktop monorepo split.
 
 Key product decisions made during those sessions:
 
@@ -204,7 +207,7 @@ pnpm test
 pnpm build
 ```
 
-The test suite covers agent adapters and tool schemas, Commander validation, quantity-aware analysis, local Scryfall query parsing, Oracle and art tag caches, Brave responses, rules lookup, MTGO export, image caching, authentication boundaries, message chunking, and thread behavior.
+The test suite covers the Codex app-server bridge and tool schemas, Commander validation, quantity-aware analysis, local Scryfall query parsing, Oracle and art tag caches, Brave responses, rules lookup, MTGO export, image caching, authentication boundaries, message chunking, and thread behavior.
 
 ## Data and observability
 

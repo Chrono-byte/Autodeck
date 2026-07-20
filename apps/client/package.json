@@ -13,7 +13,6 @@
   "dependencies": {
     "@autodekt/backend": "workspace:*",
     "@convex-dev/better-auth": "latest",
-    "@earendil-works/pi-ai": "latest",
     "@tanstack/ai": "latest",
     "@tanstack/ai-client": "latest",
     "@tanstack/ai-openai": "latest",
