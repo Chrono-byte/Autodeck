@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "turbo dev --filter=@autodekt/client --filter=@autodekt/backend",
+    "dev": "turbo dev --filter=@autodekt/client --filter=@autodekt/backend --filter=@autodekt/desktop",
     "dev:client": "turbo dev --filter=@autodekt/client",
     "dev:desktop": "turbo dev --filter=@autodekt/desktop",
     "dev:backend": "turbo dev --filter=@autodekt/backend",

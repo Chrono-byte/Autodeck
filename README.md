@@ -1,12 +1,10 @@
 # Autodekt
 
-Autodekt is an agentic Magic: The Gathering Commander deckbuilding workspace. It combines a persistent, Moxfield-inspired deck editor with an AI collaborator that can research current strategy, inspect the live deck, verify card text and rules, analyze deck structure, and make edits alongside the player.
-
-Built with Codex and GPT-5.6 for the [OpenAI Build Week](https://openai.devpost.com/) **Apps for Your Life** track.
+Autodekt is an agentic Magic: The Gathering Commander deckbuilding workspace. It combines a persistent, Moxfield-inspired deck editor with an AI collaborator that can research strategy, inspect the live deck, verify card text and rules, analyze deck structure, and edit alongside the player.
 
 ## Why Autodekt
 
-Commander deckbuilding is an open-ended research problem. A useful assistant needs more than a chat box: it must understand the player's actual list, distinguish current card data from general model knowledge, check official rules, find recent community strategy, and preserve every decision across a long tuning session.
+Commander deckbuilding is an open-ended research problem. A useful assistant needs more than a chat box: it must understand the player's list, distinguish current card data from model knowledge, check official rules, find recent community strategy, and preserve decisions across a long tuning session.
 
 Autodekt turns those requirements into one shared workspace. The player and agent work on the same persistent deck, while deterministic tools and current sources keep the model grounded.
 
@@ -45,7 +43,7 @@ pnpm install
 pnpm --filter @autodekt/backend dev:once
 ```
 
-The Convex command creates `packages/backend/.env.local`, starts a local deployment, and prompts for any initial setup it needs. The client maps the generated Convex URLs into its Vite environment automatically.
+The Convex command creates `packages/backend/.env.local`, starts a local deployment, and prompts for any initial setup it needs. The client automatically maps the generated Convex URLs into its Vite environment.
 
 If Convex did not set the Better Auth origin, set it once:
 
@@ -92,7 +90,7 @@ CODEX_EXECUTABLE=codex
 
 For local inference, start LM Studio's server with the configured model loaded. No local API credential is required. `LM_STUDIO_TEXT_MODEL` can override the model used for automatic thread titles. Local Gemma remains available in the model picker without an OpenAI connection.
 
-`BRAVE_API_KEY` is optional, but live deck-tech and metagame research is unavailable without it. The key is read only by server code.
+`BRAVE_API_KEY` is optional, but live deck-tech and metagame research is unavailable without it. The key is read-only by server code.
 
 ## Judge/demo flow
 
@@ -156,7 +154,7 @@ packages/
   config/      Shared TypeScript configuration
 ```
 
-The root package is orchestration-only. The client imports generated Convex bindings through `@autodekt/backend`; package code does not reach across workspace folders.
+The root package is orchestration-only. The client imports generated Convex bindings via `@autodekt/backend`; package code does not span workspace folders.
 
 The main agent boundary is deliberate:
 
