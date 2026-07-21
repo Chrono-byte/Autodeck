@@ -119,7 +119,7 @@ export function DeckChat({
   const pendingSyncRef = useRef<PendingMessageSync | null>(null);
   const syncRunningRef = useRef(false);
   const wasLoadingRef = useRef(false);
-  const { status: codexStatus } = useOpenAICodexStatus();
+  const { status: codexStatus, error: codexStatusError } = useOpenAICodexStatus();
   const accountPreferences = useQuery(api.chatPreferences.get);
   const persistedMessages = usePaginatedQuery(
     api.threads.listMessages,
@@ -209,7 +209,11 @@ export function DeckChat({
     };
   }, [selectorPanel]);
 
-  const selectedModel = codexStatus?.connected ? modelChoice : "local";
+  const selectedModel = modelChoice;
+  const codexSelected = modelChoice !== "local";
+  const codexChecking = codexSelected && codexStatus === undefined && !codexStatusError;
+  const codexUnavailable =
+    codexSelected && (codexStatusError !== undefined || codexStatus?.connected === false);
   const chat = usePersistentChat({
     id: String(thread._id),
     initialMessages: hydratedMessages,
@@ -342,7 +346,7 @@ export function DeckChat({
 
   const submit = () => {
     const content = input.trim();
-    if (!content) return;
+    if (!content || codexChecking || codexUnavailable) return;
     if (
       !titleRequestedRef.current &&
       chat.messages.length === 0 &&
@@ -374,13 +378,15 @@ export function DeckChat({
     if (container) container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   };
 
-  const activeChoice = codexStatus?.connected ? modelChoice : "local";
+  const activeChoice = modelChoice;
   const modelLabel =
     activeChoice === "local"
       ? "Local Gemma"
       : (CODEX_MODELS.find((model) => model.value === activeChoice)?.label ?? "5.6 Sol");
   const activeModelLabel =
-    activeChoice === "local" ? modelLabel : `${modelLabel} ${titleCase(reasoningEffort)}`;
+    activeChoice === "local"
+      ? modelLabel
+      : `${modelLabel} ${titleCase(reasoningEffort)}${codexUnavailable ? " · Disconnected" : ""}`;
   const retryModels = [
     { value: "local", label: "Local Gemma" },
     ...CODEX_MODELS.map((model) => ({
@@ -558,6 +564,16 @@ export function DeckChat({
             <ArrowDown aria-hidden="true" /> Jump to current turn
           </button>
         )}
+        {(codexChecking || codexUnavailable) && (
+          <div className={`provider-status ${codexUnavailable ? "warning" : ""}`} role="status">
+            <span>
+              {codexChecking
+                ? "Checking the OpenAI Codex connection…"
+                : "OpenAI Codex is disconnected. This message will not be sent to Local Gemma automatically."}
+            </span>
+            {codexUnavailable && <a href="/settings#connections">Connect Codex</a>}
+          </div>
+        )}
         <form
           className="chat-composer"
           onSubmit={(event) => {
@@ -590,6 +606,7 @@ export function DeckChat({
                     setSelectorPanel("root");
                   }}
                   aria-expanded={selectorOpen}
+                  data-disconnected={codexUnavailable ? "true" : undefined}
                 >
                   <span>{activeModelLabel}</span>
                   <ChevronDown className="selector-chevron" aria-hidden="true" />
@@ -728,7 +745,7 @@ export function DeckChat({
               <button
                 type={chat.isLoading ? "button" : "submit"}
                 className={chat.isLoading ? "stream-stop" : undefined}
-                disabled={!chat.isLoading && !input.trim()}
+                disabled={!chat.isLoading && (!input.trim() || codexChecking || codexUnavailable)}
                 aria-label={chat.isLoading ? "Stop response" : "Send message"}
                 title={chat.isLoading ? "Stop response" : "Send message"}
                 onClick={chat.isLoading ? () => chat.stop() : undefined}

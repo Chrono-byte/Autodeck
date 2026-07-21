@@ -63,6 +63,7 @@ export const Route = createFileRoute("/api/cards/collection")({
               card.card_faces?.map((face) => `${face.name}: ${face.oracle_text ?? ""}`).join("\n"),
             manaValue: card.cmc,
             colorIdentity: card.color_identity,
+            commanderLegality: card.legalities?.commander,
           })),
           unresolved,
         });

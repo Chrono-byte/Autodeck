@@ -170,6 +170,8 @@ function AuthenticatedWorkspace() {
   const [threadId, setThreadId] = useState<Id<"threads"> | null>(null);
   const [creatingDeck, setCreatingDeck] = useState(false);
   const [deckName, setDeckName] = useState("");
+  const [createIntent, setCreateIntent] = useState<"blank" | "import">("blank");
+  const [openImportDeckId, setOpenImportDeckId] = useState<Id<"decks"> | null>(null);
   const [initialWorkspacePreferences] = useState(readWorkspacePreferences);
   const [sidebarOpen, setSidebarOpen] = useState(initialWorkspacePreferences.sidebarOpen);
   const [chatSplit, setChatSplit] = useState(initialWorkspacePreferences.chatSplit);
@@ -275,8 +277,14 @@ function AuthenticatedWorkspace() {
     setDeckId(created.deckId);
     setThreadId(created.threadId);
     setExpandedDeckIds((current) => new Set(current).add(String(created.deckId)));
+    if (createIntent === "import") setOpenImportDeckId(created.deckId);
     setDeckName("");
     setCreatingDeck(false);
+  };
+
+  const beginDeckCreation = (intent: "blank" | "import") => {
+    setCreateIntent(intent);
+    setCreatingDeck(true);
   };
 
   const toggleDeck = (nextDeckId: Id<"decks">) => {
@@ -412,12 +420,13 @@ function AuthenticatedWorkspace() {
         </header>
         <button
           className="new-deck-button"
-          onClick={() => (deckId ? void startThread(deckId) : setCreatingDeck(true))}
+          onClick={() => (deckId ? void startThread(deckId) : beginDeckCreation("blank"))}
         >
           <Plus aria-hidden="true" /> {deckId ? "New thread" : "New deck"}
         </button>
         {creatingDeck && (
           <div className="inline-create">
+            {createIntent === "import" && <p>Create a deck, then paste your decklist.</p>}
             <input
               autoFocus
               value={deckName}
@@ -435,7 +444,7 @@ function AuthenticatedWorkspace() {
             <p className="nav-label">DECKS</p>
             <button
               type="button"
-              onClick={() => setCreatingDeck(true)}
+              onClick={() => beginDeckCreation("blank")}
               title="New deck"
               aria-label="New deck"
             >
@@ -767,6 +776,8 @@ function AuthenticatedWorkspace() {
             deck={deck}
             thread={thread}
             cards={cards}
+            openImport={openImportDeckId === deck._id}
+            onImportOpened={() => setOpenImportDeckId(null)}
             onClose={() => {
               setDeckEditorCollapsed(true);
               window.localStorage.setItem("autodekt:deck-editor-collapsed", "true");
@@ -778,11 +789,40 @@ function AuthenticatedWorkspace() {
         <section className="workspace-empty">
           <div className="empty-orbit">A</div>
           <h1>{decks === undefined ? "Loading decks…" : "No decks yet"}</h1>
-          <p>Create a deck to start building and discussing a list.</p>
+          <p>Bring in a Commander list, validate it, and ask Autodekt to improve it.</p>
           {decks?.length === 0 && (
-            <button className="primary-button" onClick={() => setCreatingDeck(true)}>
-              Create your first deck
-            </button>
+            <>
+              <div className="onboarding-actions">
+                <button className="primary-button" onClick={() => beginDeckCreation("import")}>
+                  Import a decklist
+                </button>
+                <button className="onboarding-secondary" onClick={() => beginDeckCreation("blank")}>
+                  Start with a blank deck
+                </button>
+              </div>
+              <ol className="onboarding-steps" aria-label="Getting started">
+                <li>
+                  <b>1</b>
+                  <span>
+                    <strong>Add your list</strong>Paste an Arena or MTGO-style decklist.
+                  </span>
+                </li>
+                <li>
+                  <b>2</b>
+                  <span>
+                    <strong>Check legality</strong>Review count, color identity, singleton, and
+                    Commander rules.
+                  </span>
+                </li>
+                <li>
+                  <b>3</b>
+                  <span>
+                    <strong>Ask for changes</strong>Research upgrades and inspect every edit in
+                    History.
+                  </span>
+                </li>
+              </ol>
+            </>
           )}
         </section>
       )}

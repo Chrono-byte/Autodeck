@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import {
   Circle,
   Crown,
@@ -20,7 +20,8 @@ import {
 import { api } from "@autodekt/backend/api";
 import type { Doc } from "@autodekt/backend/data-model";
 import { cardImageUrl } from "../lib/card-image";
-import { isManaColor, MANA_COLORS, type ManaColor } from "../lib/deck-analysis";
+import { validateCommanderDeck } from "../lib/commander-validation";
+import { isManaColor, MANA_COLORS, type ManaColor, type ScryfallCard } from "../lib/deck-analysis";
 import { formatMtgoDeck, mtgoExportFilename } from "../lib/mtgo-export";
 import { ManaSymbol } from "./ManaSymbol";
 
@@ -28,6 +29,7 @@ type GroupMode = "tag" | "type" | "color" | "mana" | "zone";
 type SortMode = "name" | "mana" | "type";
 type ViewMode = "stacks" | "grid" | "list";
 type Zone = "commander" | "main" | "maybeboard";
+type InspectorPanel = "validation" | "history" | null;
 type ResolvedCard = {
   name: string;
   typeLine: string;
@@ -95,11 +97,15 @@ export function DeckEditor({
   thread,
   cards,
   onClose,
+  openImport,
+  onImportOpened,
 }: {
   deck: Doc<"decks">;
   thread: Doc<"threads">;
   cards: Doc<"deckCards">[];
   onClose: () => void;
+  openImport?: boolean;
+  onImportOpened?: () => void;
 }) {
   const [group, setGroup] = useState<GroupMode>("type");
   const [sort, setSort] = useState<SortMode>("mana");
@@ -110,6 +116,10 @@ export function DeckEditor({
   const [importText, setImportText] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [compactViewport, setCompactViewport] = useState(false);
+  const [inspectorPanel, setInspectorPanel] = useState<InspectorPanel>(null);
+  const [currentCards, setCurrentCards] = useState<ScryfallCard[] | null>(null);
+  const [validationLookupFailed, setValidationLookupFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(cards[0]?._id ?? null);
   const importButtonRef = useRef<HTMLButtonElement>(null);
   const importBoxRef = useRef<HTMLDivElement>(null);
@@ -123,6 +133,99 @@ export function DeckEditor({
   const updateTags = useMutation(api.deckCards.updateTags);
   const updateSearchMetadata = useMutation(api.deckCards.updateSearchMetadata);
   const syncCommanderMetadata = useMutation(api.deckCards.syncCommanderMetadata);
+  const deckEvents = useQuery(api.deckEvents.list, { deckId: deck._id });
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 760px)");
+    const update = () => setCompactViewport(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (!openImport) return;
+    setImporting(true);
+    onImportOpened?.();
+  }, [onImportOpened, openImport]);
+
+  const validationKey = useMemo(
+    () =>
+      cards
+        .filter((card) => card.zone !== "maybeboard")
+        .map((card) => `${card.name}:${card.updatedAt}`)
+        .sort()
+        .join("\n"),
+    [cards],
+  );
+
+  useEffect(() => {
+    if (!validationKey) {
+      setValidationLookupFailed(false);
+      setCurrentCards([]);
+      return;
+    }
+    const controller = new AbortController();
+    setCurrentCards(null);
+    setValidationLookupFailed(false);
+    const timer = window.setTimeout(() => {
+      void fetch("/api/cards/collection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          decklist: cards
+            .filter((card) => card.zone !== "maybeboard")
+            .map((card) => card.name)
+            .join("\n"),
+        }),
+        signal: controller.signal,
+      })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("Deck validation lookup failed");
+          return response.json() as Promise<{
+            cards: Array<{
+              name: string;
+              typeLine: string;
+              oracleText?: string;
+              manaValue: number;
+              colorIdentity: string[];
+              commanderLegality?: string;
+            }>;
+          }>;
+        })
+        .then((result) => {
+          setCurrentCards(
+            result.cards.map((card) => ({
+              name: card.name,
+              type_line: card.typeLine,
+              oracle_text: card.oracleText,
+              cmc: card.manaValue,
+              color_identity: card.colorIdentity,
+              legalities: card.commanderLegality
+                ? { commander: card.commanderLegality }
+                : undefined,
+            })),
+          );
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          setValidationLookupFailed(true);
+          setCurrentCards(
+            cards.map((card) => ({
+              name: card.name,
+              type_line: card.typeLine,
+              oracle_text: card.oracleText,
+              cmc: card.manaValue,
+              color_identity: card.colorIdentity,
+            })),
+          );
+        });
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [cards, validationKey]);
 
   const missingSearchMetadataKey = useMemo(
     () =>
@@ -438,15 +541,19 @@ export function DeckEditor({
         .reduce((sum, card) => sum + card.quantity, 0),
     ]),
   ) as Record<string, number>;
-  const commanderCount = cards
-    .filter((card) => card.zone === "commander")
-    .reduce((sum, card) => sum + card.quantity, 0);
-  const deckStatus =
-    deckTotal === 100 && commanderCount > 0
-      ? "Ready"
-      : deckTotal > 100
-        ? `${deckTotal - 100} over`
-        : `${100 - deckTotal} to go`;
+  const validation = validateCommanderDeck(cards, currentCards ?? []);
+  const validationWarnings = validationLookupFailed
+    ? ["Current Scryfall legality could not be refreshed; stored card rules were checked instead."]
+    : validation.warnings;
+  const validationLoading = currentCards === null;
+  const deckStatus = validationLoading
+    ? "Checking…"
+    : validation.errors.length
+      ? `${validation.errors.length} ${validation.errors.length === 1 ? "issue" : "issues"}`
+      : validationWarnings.length
+        ? "Needs review"
+        : "Legal";
+  const renderedView: ViewMode = compactViewport ? "list" : view;
   const zoneLabel =
     zone === "main" ? "main deck" : zone === "commander" ? "command zone" : "maybeboard";
 
@@ -468,11 +575,26 @@ export function DeckEditor({
           </div>
         </div>
         <div className="deck-title-actions">
-          <span
-            className={`deck-count ${deckTotal === 100 && commanderCount > 0 ? "complete" : ""}`}
+          <button
+            type="button"
+            className={`deck-count ${!validationLoading && validation.valid && !validationWarnings.length ? "complete" : ""}`}
+            aria-expanded={inspectorPanel === "validation"}
+            onClick={() =>
+              setInspectorPanel((current) => (current === "validation" ? null : "validation"))
+            }
           >
             {deckTotal} / 100 · {deckStatus}
-          </span>
+          </button>
+          <button
+            type="button"
+            className="deck-history-button"
+            aria-expanded={inspectorPanel === "history"}
+            onClick={() =>
+              setInspectorPanel((current) => (current === "history" ? null : "history"))
+            }
+          >
+            History
+          </button>
           <button
             type="button"
             className="deck-pane-close"
@@ -483,6 +605,86 @@ export function DeckEditor({
           </button>
         </div>
       </header>
+
+      {inspectorPanel === "validation" && (
+        <section className="deck-inspector" aria-label="Deck validation">
+          <header>
+            <div>
+              <strong>Commander validation</strong>
+              <span>Count, commander pairing, singleton, color identity, and format legality</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInspectorPanel(null)}
+              aria-label="Close validation"
+            >
+              Close
+            </button>
+          </header>
+          {validationLoading ? (
+            <p>Checking the current card data…</p>
+          ) : validation.errors.length || validationWarnings.length ? (
+            <ul>
+              {validation.errors.map((error) => (
+                <li className="validation-error" key={error}>
+                  {error}
+                </li>
+              ))}
+              {validationWarnings.map((warning) => (
+                <li className="validation-warning" key={warning}>
+                  {warning}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="validation-success">No Commander legality issues found.</p>
+          )}
+        </section>
+      )}
+
+      {inspectorPanel === "history" && (
+        <section className="deck-inspector deck-history" aria-label="Deck edit history">
+          <header>
+            <div>
+              <strong>Edit history</strong>
+              <span>User and assistant changes to this deck</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInspectorPanel(null)}
+              aria-label="Close history"
+            >
+              Close
+            </button>
+          </header>
+          {deckEvents === undefined ? (
+            <p>Loading changes…</p>
+          ) : deckEvents.length ? (
+            <ol>
+              {deckEvents.map((event) => (
+                <li key={event._id}>
+                  <span className={`history-actor ${event.actor}`}>{event.actor}</span>
+                  <div>
+                    <strong>
+                      {event.action}
+                      {event.cardName ? ` · ${event.cardName}` : ""}
+                    </strong>
+                    <span>
+                      {event.detail ? `${event.detail} · ` : ""}
+                      {new Intl.DateTimeFormat(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(event.createdAt)}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p>No deck changes have been recorded yet.</p>
+          )}
+        </section>
+      )}
 
       <div className="deck-commandbar">
         <div className="card-add-row">
@@ -520,9 +722,15 @@ export function DeckEditor({
           <label>
             View
             <select
-              value={view}
+              value={renderedView}
               onChange={(event) => setView(event.target.value as ViewMode)}
               aria-label="View"
+              disabled={compactViewport}
+              title={
+                compactViewport
+                  ? "Compact list is used on small screens for performance"
+                  : undefined
+              }
             >
               <option value="stacks">Visual stacks</option>
               <option value="grid">Visual grid</option>
@@ -600,7 +808,7 @@ export function DeckEditor({
       {notice && <div className="notice-banner">{notice}</div>}
 
       <div
-        className={`deck-browser ${view === "stacks" ? "stacks-view" : ""} ${view === "list" ? "list-view" : ""} ${view === "grid" ? "grid-view" : ""}`}
+        className={`deck-browser ${renderedView === "stacks" ? "stacks-view" : ""} ${renderedView === "list" ? "list-view" : ""} ${renderedView === "grid" ? "grid-view" : ""}`}
       >
         {selectedCard && (
           <aside className="card-preview" aria-label="Selected card preview">
@@ -675,12 +883,12 @@ export function DeckEditor({
                 </h3>
                 <span>{groupCards.length} unique</span>
               </header>
-              <div className={`visual-stack ${view === "grid" ? "card-grid" : ""}`}>
+              <div className={`visual-stack ${renderedView === "grid" ? "card-grid" : ""}`}>
                 {groupCards.map((card) => {
                   const isSelected = card._id === selectedCard?._id;
                   return (
                     <div
-                      className={`stack-card ${view === "grid" ? "grid-card" : ""} ${isSelected ? "selected" : ""}`}
+                      className={`stack-card ${renderedView === "grid" ? "grid-card" : ""} ${isSelected ? "selected" : ""}`}
                       key={card._id}
                       role="button"
                       tabIndex={0}
@@ -715,15 +923,9 @@ export function DeckEditor({
                       aria-label={`${card.name}, mana value ${card.manaValue}`}
                       title={card.oracleText}
                     >
-                      <img
-                        loading="lazy"
-                        src={
-                          view !== "list" || isSelected
-                            ? cardImageUrl(card.name, "normal")
-                            : cardImageUrl(card.name, "art_crop")
-                        }
-                        alt=""
-                      />
+                      {renderedView !== "list" && (
+                        <img loading="lazy" src={cardImageUrl(card.name, "normal")} alt="" />
+                      )}
                       <span className="stack-card-shade" />
                       {card.quantity > 1 && <b className="stack-quantity">{card.quantity}</b>}
                       <strong>{card.name}</strong>
