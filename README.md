@@ -173,26 +173,6 @@ Game invariants—ownership, deck zones, Commander legality, query validation, a
 
 Large streamed conversations are stored incrementally in paginated message records, with oversized tool and reasoning payloads split into chunks. Codex app-server notifications and dynamic-tool requests are normalized at one bridge boundary so the rest of the chat UI consumes the same stable event contract as local inference.
 
-## How Codex and GPT-5.6 shaped the project
-
-Autodekt was developed as a sequence of real Codex sessions, beginning with the persistent Commander workspace and continuing through focused feature, reliability, and product-polish passes. Codex accelerated the work in four ways:
-
-- **Research to implementation:** Codex checked live Brave, Scryfall, Electron, Convex, and OpenAI/Codex contracts, then implemented the integrations and regression tests in the same session.
-- **Cross-boundary reasoning:** GPT-5.6 traced failures across streamed provider events, TanStack AI state, React rendering, Convex persistence, and Electron preload IPC instead of treating symptoms in isolation.
-- **Decision pressure-testing:** Codex helped separate model judgment from deterministic safeguards—for example, keeping mechanics in tools, validation in code, and source requirements in the system prompt.
-- **Continuous verification:** Each focused change was validated through the relevant TypeScript, test, lint, build, Convex code-generation, API smoke-test, or Electron runtime path before the next feature was layered on.
-
-Representative Codex-built slices include the shared deck/thread data model, grounded Scryfall and rules tools, Brave research with citations, quantity-aware deck analysis, Oracle Tagger discovery, local Scryfall-style deck search, MTGO export, resilient card-image caching, rich streamed chat UI, queued steering, Codex app-server authentication and inference, and the browser/desktop monorepo split.
-
-Key product decisions made during those sessions:
-
-- Build a durable shared workspace, not a stateless decklist prompt.
-- Prefer live or bundled authoritative data over memorized card text and rules.
-- Keep browsing and model inference optional so the core workspace can run locally.
-- Keep OAuth credentials on the local machine and out of application data.
-- Treat community Oracle tags and deck-role counts as discovery heuristics, not rules truth.
-- Normalize unreliable provider details once at the adapter boundary.
-
 ## Verification
 
 Run the repository checks from the workspace root:
