@@ -7,3 +7,4 @@ apps/*/release
 .tanstack
 .codex-runtime
 .pnpm-store/**
+BUILD_WEEK_SUBMISSION.md
