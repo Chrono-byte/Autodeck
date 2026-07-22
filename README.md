@@ -81,11 +81,10 @@ If a Codex model is selected without an active connection, the request fails cle
 Copy `.env.example` to `.env.local` and configure the services you want:
 
 ```dotenv
-LM_STUDIO_URL=http://127.0.0.1:1234
-LM_STUDIO_MODEL=google/gemma-4-12b-qat
-BRAVE_API_KEY=your-key-here
-LOG_LEVEL=info
+BRAVE_API_KEY=
 CODEX_EXECUTABLE=codex
+VITE_CONVEX_URL=http://127.0.0.1:3210
+VITE_CONVEX_SITE_URL=http://127.0.0.1:3211
 ```
 
 For local inference, start LM Studio's server with the configured model loaded. No local API credential is required. `LM_STUDIO_TEXT_MODEL` can override the model used for automatic thread titles. Local Gemma remains available in the model picker without an OpenAI connection.
