@@ -81,11 +81,10 @@ If a Codex model is selected without an active connection, the request fails cle
 Copy `.env.example` to `.env.local` and configure the services you want:
 
 ```dotenv
-LM_STUDIO_URL=http://127.0.0.1:1234
-LM_STUDIO_MODEL=google/gemma-4-12b-qat
-BRAVE_API_KEY=your-key-here
-LOG_LEVEL=info
+BRAVE_API_KEY=
 CODEX_EXECUTABLE=codex
+VITE_CONVEX_URL=http://127.0.0.1:3210
+VITE_CONVEX_SITE_URL=http://127.0.0.1:3211
 ```
 
 For local inference, start LM Studio's server with the configured model loaded. No local API credential is required. `LM_STUDIO_TEXT_MODEL` can override the model used for automatic thread titles. Local Gemma remains available in the model picker without an OpenAI connection.
@@ -173,26 +172,6 @@ Player + persistent deck
 Game invariants—ownership, deck zones, Commander legality, query validation, and persisted edits—live in code. The model decides when to use tools and how to synthesize their evidence, but it cannot bypass those constraints. Named-card advice requires a current Scryfall lookup, and rules questions require a Comprehensive Rules lookup.
 
 Large streamed conversations are stored incrementally in paginated message records, with oversized tool and reasoning payloads split into chunks. Codex app-server notifications and dynamic-tool requests are normalized at one bridge boundary so the rest of the chat UI consumes the same stable event contract as local inference.
-
-## How Codex and GPT-5.6 shaped the project
-
-Autodekt was developed as a sequence of real Codex sessions, beginning with the persistent Commander workspace and continuing through focused feature, reliability, and product-polish passes. Codex accelerated the work in four ways:
-
-- **Research to implementation:** Codex checked live Brave, Scryfall, Electron, Convex, and OpenAI/Codex contracts, then implemented the integrations and regression tests in the same session.
-- **Cross-boundary reasoning:** GPT-5.6 traced failures across streamed provider events, TanStack AI state, React rendering, Convex persistence, and Electron preload IPC instead of treating symptoms in isolation.
-- **Decision pressure-testing:** Codex helped separate model judgment from deterministic safeguards—for example, keeping mechanics in tools, validation in code, and source requirements in the system prompt.
-- **Continuous verification:** Each focused change was validated through the relevant TypeScript, test, lint, build, Convex code-generation, API smoke-test, or Electron runtime path before the next feature was layered on.
-
-Representative Codex-built slices include the shared deck/thread data model, grounded Scryfall and rules tools, Brave research with citations, quantity-aware deck analysis, Oracle Tagger discovery, local Scryfall-style deck search, MTGO export, resilient card-image caching, rich streamed chat UI, queued steering, Codex app-server authentication and inference, and the browser/desktop monorepo split.
-
-Key product decisions made during those sessions:
-
-- Build a durable shared workspace, not a stateless decklist prompt.
-- Prefer live or bundled authoritative data over memorized card text and rules.
-- Keep browsing and model inference optional so the core workspace can run locally.
-- Keep OAuth credentials on the local machine and out of application data.
-- Treat community Oracle tags and deck-role counts as discovery heuristics, not rules truth.
-- Normalize unreliable provider details once at the adapter boundary.
 
 ## Verification
 
