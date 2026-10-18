@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { parseDecklist } from "../lib/deck-analysis";
+import { parseImportedDecklist } from "../lib/deck-import";
 import { fetchDeckCards } from "../lib/scryfall.server";
 import { scryfallArtTagCatalog } from "../lib/scryfall-art-tags.server";
 import { scryfallOracleTagCatalog } from "../lib/scryfall-tags.server";
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/cards/collection")({
     handlers: {
       POST: async ({ request }) => {
         const body = (await request.json()) as { decklist?: string };
-        const entries = parseDecklist(body.decklist ?? "");
+        const entries = parseImportedDecklist(body.decklist ?? "");
         if (!entries.length)
           return Response.json({ error: "No card names found." }, { status: 400 });
         if (entries.length > 110)
@@ -28,43 +28,50 @@ export const Route = createFileRoute("/api/cards/collection")({
           scryfallOracleTagCatalog.tagSlugsForOracleIds(oracleIds),
           scryfallArtTagCatalog.tagSlugsForIllustrationIds(illustrationIds),
         ]);
-        const quantities = new Map(
-          entries.map((entry) => [entry.name.toLocaleLowerCase(), entry.quantity]),
-        );
+        const cardsByName = new Map(cards.map((card) => [card.name.toLocaleLowerCase(), card]));
         return Response.json({
-          cards: cards.map((card) => ({
-            name: card.name,
-            oracleId: card.oracle_id,
-            oracleTags: card.oracle_id
-              ? [...(oracleTagIndex.tagsByOracleId.get(card.oracle_id) ?? [])]
-              : [],
-            illustrationIds: [
-              ...(card.illustration_id ? [card.illustration_id] : []),
-              ...(card.card_faces?.flatMap((face) =>
-                face.illustration_id ? [face.illustration_id] : [],
-              ) ?? []),
-            ],
-            artTags: [
-              ...new Set(
-                [
+          cards: entries.flatMap((entry) => {
+            const card = cardsByName.get(entry.name.toLocaleLowerCase());
+            if (!card) return [];
+            return [
+              {
+                name: card.name,
+                oracleId: card.oracle_id,
+                oracleTags: card.oracle_id
+                  ? [...(oracleTagIndex.tagsByOracleId.get(card.oracle_id) ?? [])]
+                  : [],
+                illustrationIds: [
                   ...(card.illustration_id ? [card.illustration_id] : []),
                   ...(card.card_faces?.flatMap((face) =>
                     face.illustration_id ? [face.illustration_id] : [],
                   ) ?? []),
-                ].flatMap((illustrationId) => [
-                  ...(artTagIndex.tagsByIllustrationId.get(illustrationId) ?? []),
-                ]),
-              ),
-            ],
-            quantity: quantities.get(card.name.toLocaleLowerCase()) ?? 1,
-            typeLine: card.type_line,
-            oracleText:
-              card.oracle_text ??
-              card.card_faces?.map((face) => `${face.name}: ${face.oracle_text ?? ""}`).join("\n"),
-            manaValue: card.cmc,
-            colorIdentity: card.color_identity,
-            commanderLegality: card.legalities?.commander,
-          })),
+                ],
+                artTags: [
+                  ...new Set(
+                    [
+                      ...(card.illustration_id ? [card.illustration_id] : []),
+                      ...(card.card_faces?.flatMap((face) =>
+                        face.illustration_id ? [face.illustration_id] : [],
+                      ) ?? []),
+                    ].flatMap((illustrationId) => [
+                      ...(artTagIndex.tagsByIllustrationId.get(illustrationId) ?? []),
+                    ]),
+                  ),
+                ],
+                quantity: entry.quantity,
+                zone: entry.zone,
+                typeLine: card.type_line,
+                oracleText:
+                  card.oracle_text ??
+                  card.card_faces
+                    ?.map((face) => `${face.name}: ${face.oracle_text ?? ""}`)
+                    .join("\n"),
+                manaValue: card.cmc,
+                colorIdentity: card.color_identity,
+                commanderLegality: card.legalities?.commander,
+              },
+            ];
+          }),
           unresolved,
         });
       },

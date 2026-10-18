@@ -68,6 +68,36 @@ describe("ScryfallClient", () => {
     expect(sleeps).toEqual([2000]);
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it("honors an extended cooldown when Scryfall responds with another 429", async () => {
+    let now = 0;
+    const sleeps: number[] = [];
+    const fetcher = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce(
+        jsonResponse({ details: "Slow down" }, { status: 429, headers: { "retry-after": "2" } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          { details: "Keep waiting" },
+          { status: 429, headers: { "retry-after": "3" } },
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }));
+    const client = new ScryfallClient({
+      fetcher,
+      now: () => now,
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+        now += milliseconds;
+      },
+      minimumIntervalMs: 125,
+    });
+
+    await expect(client.request("/limited")).resolves.toEqual({ ok: true });
+    expect(sleeps).toEqual([2000, 3000]);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
 });
 
 describe("scryfallSearchResult", () => {

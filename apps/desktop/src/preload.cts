@@ -35,4 +35,8 @@ const desktopShellApi: DesktopShellApi = {
   },
 };
 
+window.addEventListener("DOMContentLoaded", () => {
+  document.documentElement.dataset.platform = process.platform;
+});
+
 contextBridge.exposeInMainWorld("desktopShell", desktopShellApi);

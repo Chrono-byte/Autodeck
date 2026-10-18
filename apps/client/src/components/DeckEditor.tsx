@@ -123,6 +123,7 @@ export function DeckEditor({
   const [selectedId, setSelectedId] = useState<string | null>(cards[0]?._id ?? null);
   const importButtonRef = useRef<HTMLButtonElement>(null);
   const importBoxRef = useRef<HTMLDivElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [cardMenu, setCardMenu] = useState<{
     card: Doc<"deckCards">;
     x: number;
@@ -460,6 +461,10 @@ export function DeckEditor({
   };
 
   const importList = async () => {
+    if (!importText.trim()) {
+      setNotice("Paste a decklist or choose a text file first.");
+      return;
+    }
     setBusy(true);
     setNotice("");
     try {
@@ -469,21 +474,33 @@ export function DeckEditor({
         body: JSON.stringify({ decklist: importText }),
       });
       const result = (await response.json()) as {
-        cards?: Array<ResolvedCard & { quantity: number }>;
+        cards?: Array<ResolvedCard & { quantity: number; zone: Zone }>;
         unresolved?: string[];
         error?: string;
       };
       if (!response.ok || !result.cards) setNotice(result.error ?? "Import failed.");
       else {
-        for (const card of result.cards) await saveResolved(card, card.quantity, "main");
+        for (const card of result.cards) await saveResolved(card, card.quantity, card.zone);
         setNotice(
-          `Imported ${result.cards.length} cards${result.unresolved?.length ? `; unresolved: ${result.unresolved.join(", ")}` : "."}`,
+          `Imported ${result.cards.length} unique cards${result.unresolved?.length ? `; unresolved: ${result.unresolved.join(", ")}` : "."}`,
         );
         setImportText("");
         setImporting(false);
       }
+    } catch {
+      setNotice("Import failed. Check your connection and try again.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const loadImportFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      setImportText(await file.text());
+      setNotice("");
+    } catch {
+      setNotice(`Could not read ${file.name}.`);
     }
   };
 
@@ -794,21 +811,51 @@ export function DeckEditor({
 
       {importing && (
         <div className="import-box" ref={importBoxRef}>
+          <div className="import-box-heading">
+            <div>
+              <strong>Import decklist</strong>
+              <span>Supports Arena, MTGO, and sectioned text lists.</span>
+            </div>
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => importFileRef.current?.click()}
+            >
+              Choose file
+            </button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".txt,.dek,text/plain"
+              onChange={(event) => {
+                void loadImportFile(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
+            />
+          </div>
           <textarea
             value={importText}
             onChange={(event) => setImportText(event.target.value)}
-            placeholder={"1 Sol Ring\n1 Arcane Signet\n36 Island"}
+            placeholder={
+              "Commander\n1 Alela, Artful Provocateur\n\nDeck\n1 Sol Ring\n1 Arcane Signet\n36 Island"
+            }
             rows={7}
+            aria-label="Decklist to import"
           />
-          <button className="primary-button" onClick={() => void importList()} disabled={busy}>
-            Import list
+          <p>Use Commander, Deck/Mainboard, and Maybeboard headings to assign cards to zones.</p>
+          <button
+            className="primary-button"
+            onClick={() => void importList()}
+            disabled={busy || !importText.trim()}
+          >
+            {busy ? "Importing…" : "Import list"}
           </button>
         </div>
       )}
       {notice && <div className="notice-banner">{notice}</div>}
 
       <div
-        className={`deck-browser ${renderedView === "stacks" ? "stacks-view" : ""} ${renderedView === "list" ? "list-view" : ""} ${renderedView === "grid" ? "grid-view" : ""}`}
+        className={`deck-browser ${selectedCard ? "has-preview" : ""} ${renderedView === "stacks" ? "stacks-view" : ""} ${renderedView === "list" ? "list-view" : ""} ${renderedView === "grid" ? "grid-view" : ""}`}
       >
         {selectedCard && (
           <aside className="card-preview" aria-label="Selected card preview">

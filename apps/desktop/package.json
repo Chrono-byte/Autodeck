@@ -6,10 +6,10 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "dev": "pnpm run build && electron . --dev",
+    "dev": "pnpm run build && node scripts/run-electron.cjs . --dev",
     "package": "pnpm run build && electron-builder",
     "postinstall": "install-electron",
-    "start": "electron .",
+    "start": "node scripts/run-electron.cjs .",
     "check-types": "tsc --project tsconfig.json --noEmit"
   },
   "devDependencies": {

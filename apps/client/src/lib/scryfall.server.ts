@@ -124,7 +124,7 @@ export class ScryfallClient {
 
       if (response.ok) return response.json() as Promise<T>;
 
-      if (response.status === 429 && attempt === 0) {
+      if (response.status === 429 && attempt < 2) {
         const delay = retryAfterMilliseconds(response, this.now(), this.rateLimitFallbackMs);
         this.cooldownUntil = Math.max(this.cooldownUntil, this.now() + delay);
         await response.body?.cancel();
@@ -139,7 +139,7 @@ export class ScryfallClient {
 
       const details = await errorDetails(response);
       if (response.status === 429) {
-        throw new Error(`Scryfall is still rate-limited after its cooldown: ${details}`);
+        throw new Error(`Scryfall is still rate-limited after repeated cooldowns: ${details}`);
       }
       throw new Error(`Scryfall request failed (${response.status}): ${details}`);
     }

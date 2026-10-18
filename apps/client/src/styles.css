@@ -229,7 +229,7 @@
 
   /* Workspace shell */
   .workspace-app {
-    @apply grid min-h-screen grid-cols-[280px_minmax(0,1fr)] bg-canvas transition-[grid-template-columns] duration-150;
+    @apply grid h-screen min-h-0 max-w-full grid-cols-[280px_minmax(0,1fr)] overflow-hidden bg-canvas transition-[grid-template-columns] duration-150;
   }
 
   .workspace-app.sidebar-collapsed {
@@ -584,7 +584,7 @@
   }
 
   .workspace-columns {
-    @apply grid h-screen min-w-0 grid-cols-[minmax(360px,var(--chat-share,42fr))_5px_minmax(420px,var(--deck-share,58fr))];
+    @apply grid h-screen w-full min-w-0 max-w-full grid-cols-[minmax(0,var(--chat-share,42fr))_5px_minmax(0,var(--deck-share,58fr))] overflow-hidden;
   }
 
   .workspace-columns.deck-collapsed {
@@ -1157,7 +1157,7 @@
 
   /* Deck editor */
   .deck-commandbar {
-    @apply border-b border-line bg-panel;
+    @apply min-w-0 max-w-full border-b border-line bg-panel;
   }
   .card-add-row {
     @apply grid grid-cols-[minmax(0,1fr)_100px_36px] gap-2 px-4 pb-2 pt-3;
@@ -1174,7 +1174,7 @@
     @apply rounded-md border-0 bg-accent text-lg text-white hover:bg-accent-hover;
   }
   .deck-toolbar {
-    @apply flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pb-3;
+    @apply flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-2 overflow-hidden px-4 pb-3;
   }
   .deck-toolbar label {
     @apply flex items-center gap-1.5 text-[10px] font-medium text-muted;
@@ -1269,6 +1269,25 @@
   .import-box textarea {
     @apply resize-y font-mono leading-5;
   }
+  .import-box-heading {
+    @apply flex items-start justify-between gap-3;
+  }
+  .import-box-heading > div {
+    @apply grid gap-0.5;
+  }
+  .import-box-heading strong {
+    @apply text-xs text-ink;
+  }
+  .import-box-heading span,
+  .import-box > p {
+    @apply m-0 text-[10px] text-muted;
+  }
+  .import-box-heading input {
+    @apply hidden;
+  }
+  .import-box-heading .text-button {
+    @apply shrink-0 text-xs text-accent;
+  }
   .import-box .primary-button {
     @apply justify-self-end py-2 text-xs;
   }
@@ -1277,7 +1296,10 @@
   }
 
   .deck-browser {
-    @apply grid min-h-0 flex-1 grid-cols-[210px_minmax(0,1fr)] overflow-hidden;
+    @apply grid min-h-0 flex-1 grid-cols-1 overflow-hidden;
+  }
+  .deck-browser.has-preview {
+    @apply grid-cols-[210px_minmax(0,1fr)];
   }
   .card-preview {
     @apply min-h-0 overflow-y-auto border-r border-line bg-panel p-4;
@@ -1844,6 +1866,34 @@
   }
 }
 
+@media (min-width: 1101px) and (max-width: 1380px) {
+  .workspace-app:not(.sidebar-collapsed) .workspace-columns {
+    @apply grid-cols-1;
+  }
+
+  .workspace-app:not(.sidebar-collapsed) .workspace-resizer {
+    @apply hidden;
+  }
+
+  .workspace-app:not(.sidebar-collapsed) .deck-pane {
+    @apply fixed inset-y-0 right-0 z-40 w-[min(760px,92vw)] translate-x-full border-l bg-canvas transition-transform duration-150;
+  }
+
+  .workspace-app:not(.sidebar-collapsed).deck-panel-open .deck-pane {
+    @apply translate-x-0;
+  }
+
+  .workspace-app:not(.sidebar-collapsed).deck-panel-open::after {
+    content: "";
+    @apply fixed inset-0 z-30 bg-black/30;
+  }
+
+  .workspace-app:not(.sidebar-collapsed) .deck-pane-open,
+  .workspace-app:not(.sidebar-collapsed) .deck-pane-close {
+    @apply block;
+  }
+}
+
 @media (max-width: 760px) {
   body {
     @apply overflow-auto;
@@ -1902,6 +1952,10 @@
   }
 
   .deck-browser {
+    @apply grid-cols-1;
+  }
+
+  .deck-browser.has-preview {
     @apply grid-cols-[170px_minmax(0,1fr)];
   }
 

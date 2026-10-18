@@ -38,6 +38,11 @@ body {
   user-select: none;
 }
 
+html[data-platform="darwin"] .titlebar {
+  padding-right: 10px;
+  padding-left: 80px;
+}
+
 .brand,
 .navigation {
   position: relative;

@@ -69,11 +69,17 @@ async function isClientReady(): Promise<boolean> {
   const timeout = setTimeout(() => abortController.abort(), 1_000);
 
   try {
-    const response = await fetch(clientUrl, {
-      method: "HEAD",
-      signal: abortController.signal,
-    });
-    return response.ok;
+    const healthUrl = new URL("/autodekt-health.json", clientUrl);
+    const response = await fetch(healthUrl, { signal: abortController.signal });
+    if (!response.ok) return false;
+    const health: unknown = await response.json();
+    return (
+      typeof health === "object" &&
+      health !== null &&
+      "application" in health &&
+      health.application === "autodekt" &&
+      (!isDevelopment || ("configured" in health && health.configured === true))
+    );
   } catch {
     return false;
   } finally {
@@ -213,6 +219,7 @@ function createWindow(): void {
       sandbox: true,
     },
   });
+  applicationView.webContents.setZoomFactor(1);
   mainWindow.contentView.addChildView(applicationView);
   layoutApplicationView();
 
@@ -231,6 +238,9 @@ function createWindow(): void {
   });
   applicationView.webContents.on("did-navigate", sendNavigationState);
   applicationView.webContents.on("did-navigate-in-page", sendNavigationState);
+  applicationView.webContents.once("did-finish-load", () => {
+    applicationView?.webContents.setZoomFactor(1);
+  });
 
   mainWindow.on("closed", () => {
     if (applicationView && !applicationView.webContents.isDestroyed()) {
